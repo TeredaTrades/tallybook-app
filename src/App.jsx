@@ -548,7 +548,8 @@ function ReminderAlarmModal({ alarm, onDismiss, onMarkDone, onSnooze }) {
 // ---------- App ----------
 export default function TallyBookApp() {
   const [loading, setLoading] = useState(true);
-  const [onboarding, setOnboarding] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [unlocked, setUnlocked] = useState(false); // resets every cold start — that's what gives the "welcome back" login its purpose
   const [businesses, setBusinesses] = useState([]);
   const [session, setSession] = useState({ activeBusinessId: null, viewingAs: null });
   const [appSettings, setAppSettings] = useState({ categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
@@ -570,12 +571,12 @@ export default function TallyBookApp() {
   // ---- initial load ----
   useEffect(() => {
     (async () => {
-      const ob = await storeGet("onboarding", null);
+      const acct = await storeGet("account", null);
       const biz = await storeGet("businesses", []);
       const sess = await storeGet("session", { activeBusinessId: null, viewingAs: null });
       const settings = await storeGet("app-settings", { categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
       const planned = await storeGet("planned-items", []);
-      setOnboarding(ob);
+      setAccount(acct);
       setBusinesses(biz);
       setAppSettings(settings);
       setPlannedItems(planned);
@@ -725,18 +726,26 @@ export default function TallyBookApp() {
     );
   }
 
-  if (!onboarding?.done) {
+  if (!account?.welcomed) {
     return (
-      <Onboarding
-        onDone={async (managing) => {
-          const ob = { done: true, managing };
-          await storeSet("onboarding", ob);
-          setOnboarding(ob);
-          if (businesses.length === 0) {
-            const nb = { id: uid(), name: managing === "personal" ? "My Cashbook" : "My Business", createdAt: new Date().toISOString(), books: [], members: [], moveRequests: [] };
-            await persistBusinesses([nb]);
-            await persistSession({ activeBusinessId: nb.id, viewingAs: null });
-          }
+      <WelcomeScreen
+        onDone={async (acct) => {
+          await storeSet("account", acct);
+          setAccount(acct);
+          setUnlocked(true);
+        }}
+      />
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <WelcomeBackScreen
+        account={account}
+        onUnlock={() => setUnlocked(true)}
+        onResetAccount={async () => {
+          await storeSet("account", null);
+          setAccount(null);
         }}
       />
     );
@@ -768,8 +777,103 @@ export default function TallyBookApp() {
   );
 }
 
-// ---------- Onboarding ----------
-function Onboarding({ onDone }) {
+// ---------- Welcome / Welcome back ----------
+// No backend here — this is a local-only name+PIN gate stored on-device (@capacitor/preferences),
+// not real authentication. It's meant to keep the app from opening straight to someone else's data
+// if they pick up the phone, not to protect against anything more serious than that.
+function WelcomeScreen({ onDone }) {
+  const [mode, setMode] = useState(null); // null | "create"
+  const [name, setName] = useState("");
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [error, setError] = useState("");
+
+  const createAccount = () => {
+    if (!name.trim()) { setError("Enter a name."); return; }
+    if (!/^\d{4,6}$/.test(pin)) { setError("PIN must be 4–6 digits."); return; }
+    if (pin !== pin2) { setError("PINs don't match."); return; }
+    onDone({ welcomed: true, name: name.trim(), pin });
+  };
+
+  return (
+    <div className="w-full h-screen bg-white overflow-hidden flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
+          <BookMarked size={36} className="text-teal-700" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 text-center">Welcome</h1>
+        <p className="text-sm text-slate-500 text-center mt-1 mb-8 max-w-[280px]">
+          {mode === "create"
+            ? "Set a name and PIN to keep this device's data behind a quick lock screen."
+            : "Create a local account to lock the app with a PIN, or jump straight in."}
+        </p>
+
+        {mode === "create" ? (
+          <div className="w-full space-y-3">
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+            <input value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+              type="password" inputMode="numeric" placeholder="Create a 4–6 digit PIN"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+            <input value={pin2} onChange={(e) => { setPin2(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+              type="password" inputMode="numeric" placeholder="Confirm PIN"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm" />
+            {error && <div className="text-xs text-rose-600">{error}</div>}
+            <button onClick={createAccount} className="w-full bg-teal-700 text-white py-3 rounded-xl font-semibold">Create account</button>
+            <button onClick={() => { setMode(null); setError(""); }} className="w-full text-slate-500 text-sm py-2">Back</button>
+          </div>
+        ) : (
+          <div className="w-full space-y-3">
+            <button onClick={() => setMode("create")} className="w-full bg-teal-700 text-white py-3 rounded-xl font-semibold">Create an account</button>
+            <button onClick={() => onDone({ welcomed: true, name: "", pin: null })}
+              className="w-full border border-slate-300 text-slate-700 py-3 rounded-xl font-semibold">Use without an account</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WelcomeBackScreen({ account, onUnlock, onResetAccount }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!account?.pin) onUnlock(); // no PIN was set — nothing to check, go straight in
+  }, [account?.pin]);
+
+  if (!account?.pin) return null; // brief flash before the effect above fires
+
+  const tryUnlock = () => {
+    if (pin === account.pin) onUnlock();
+    else setError("Incorrect PIN.");
+  };
+
+  return (
+    <div className="w-full h-screen bg-white overflow-hidden flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
+          <BookMarked size={36} className="text-teal-700" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 text-center">Welcome back{account.name ? `, ${account.name}` : ""}</h1>
+        <p className="text-sm text-slate-500 text-center mt-1 mb-8">Enter your PIN to continue.</p>
+        <div className="w-full space-y-3">
+          <input autoFocus value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter") tryUnlock(); }}
+            type="password" inputMode="numeric" placeholder="PIN"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-center tracking-[0.3em]" />
+          {error && <div className="text-xs text-rose-600 text-center">{error}</div>}
+          <button onClick={tryUnlock} className="w-full bg-teal-700 text-white py-3 rounded-xl font-semibold">Log in</button>
+          <button onClick={onResetAccount} className="w-full text-slate-400 text-xs py-2">Forgot PIN? Reset local account</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Choose business type (moved out of first launch — now shown inside Expenses
+// Manager the first time a business needs to be created, since it's specific to that tool) ----------
+function ChooseBusinessType({ onDone }) {
   const [choice, setChoice] = useState(null);
   const options = [
     { id: "business", label: "Business cash flow", icon: Building2 },
@@ -777,15 +881,7 @@ function Onboarding({ onDone }) {
     { id: "explore", label: "Just exploring", icon: Info },
   ];
   return (
-    <div className="w-full h-screen bg-white overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="w-5" />
-        <button onClick={() => onDone("explore")} className="text-teal-700 text-sm font-medium">Skip</button>
-      </div>
-      <div className="h-1 flex gap-1 px-4">
-        <div className="flex-1 bg-teal-700 rounded-full h-1" />
-        <div className="flex-1 bg-slate-200 rounded-full h-1" />
-      </div>
+    <div className="w-full h-full bg-white overflow-hidden flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 pt-10">
         <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
           <BookMarked size={36} className="text-teal-700" />
@@ -983,7 +1079,7 @@ function Router({ ctx, tab, setTab }) {
 
 // ---------- Books list ----------
 function BooksScreen({ ctx }) {
-  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses } = ctx;
+  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses, createBusiness } = ctx;
   const [showTemplates, setShowTemplates] = useState(false);
   const [newName, setNewName] = useState("");
   const [balances, setBalances] = useState({});
@@ -1015,6 +1111,16 @@ function BooksScreen({ ctx }) {
       : b);
     await persistBusinesses(next);
   };
+
+  // First time in the Expenses Manager (no business created yet) — this is where the
+  // "what will you manage?" question belongs, not on the app's very first screen.
+  if (businesses.length === 0) {
+    return (
+      <ChooseBusinessType onDone={async (managing) => {
+        await createBusiness(managing === "personal" ? "My Cashbook" : "My Business");
+      }} />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col">

@@ -3,6 +3,20 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont.) — Welcome / Welcome back screens
+- Replaced the old first-launch "pick a business type" screen. First time
+  opening the app now shows a Welcome screen: "Create an account" (name +
+  a local 4–6 digit PIN, stored on-device only — this is a lock screen,
+  not real authentication, there's still no backend) or "Use without an
+  account". Every subsequent open shows a Welcome back screen instead —
+  a PIN prompt if one was set (with a "Forgot PIN? Reset local account"
+  fallback), or straight through to the app if not
+- The "what will you manage?" business-type question (Business / Personal
+  / Just exploring) moved out of first launch and into the Expenses
+  Manager — it now shows the first time someone opens Expenses Manager
+  before any business has been created, since that's the tool it's
+  actually about
+
 ## 2026-08-13 — Trading button, birr exchange rates, member fix, inline calculator
 - Added a "Want to learn about trading?" button to Home, below the
   financial news list — placeholder only, not linked to anything yet

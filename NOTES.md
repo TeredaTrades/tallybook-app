@@ -39,12 +39,6 @@ that once and scoping all three together rather than separately.
   input field, expandable into a bigger calculator
 
 ## To change
-- Right after install, first app open currently shows a "pick a business
-  type" selection page — that should only apply within the Expenses
-  Manager, not be the app's first screen. Replace what a first-time user
-  sees with a "Welcome — create an account or use without an account"
-  page; on every subsequent open, show a "Welcome back — log in" page
-  instead.
 - Financial news rows on Home: swap the generic icon for real per-headline
   images from an actual news feed — decision pending on which source
   (see "Open decisions" below).
@@ -61,14 +55,19 @@ that once and scoping all three together rather than separately.
   3) parse an RSS feed (e.g. Google News) client-side — no key, but most
      RSS feeds don't reliably include images and may need a CORS proxy.
   Waiting on which direction to take before wiring this up.
-- Welcome/create-account vs welcome-back screens: the app has no backend
-  or real authentication (fully offline, on-device storage) — needs
-  scoping whether "create an account" means an actual account system
-  (a real build-out) or a local name/PIN that just gates the existing
-  offline flow.
 
 ## Done
 _(move items here once handled, with the date)_
+
+- Replaced the old "pick a business type" first-launch screen with a
+  proper Welcome flow: first time opening the app now shows "Welcome —
+  create an account or use without an account" (name + local PIN, no
+  backend — it's a lock screen, not real auth); every later open shows a
+  "Welcome back" screen instead — a PIN prompt if one was set, or
+  straight through if not. The old "what will you manage?" business-type
+  question moved into the Expenses Manager itself, shown the first time
+  someone opens it before any business exists, since that's the tool it
+  actually applies to (2026-08-13)
 
 - "Want to learn about trading?" placeholder button added to Home, below
   the financial news list — not linked anywhere yet, waiting on the
