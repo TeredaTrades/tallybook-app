@@ -3,6 +3,20 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-12 (later) — Entry detail, move/copy, app rename
+- Renamed the app display name (Android app_name / title_activity_main) to
+  "በጅሮንድ"
+- Added an Entry Detail screen — tap an entry to see amount, receipt image,
+  contact/category/remark, date/time, who created it and when, who last
+  edited it and when, and (if applicable) where it was last transferred from
+- Added move/copy entries between books — long-press (or right-click) an
+  entry to move or copy it into another book in the same business; the
+  entry is stamped with where/when it was transferred, and both books'
+  activity logs get an entry
+- Entries now track created-by/created-at separately from last-edited-by/
+  edited-at (previously an edit just overwrote who added it)
+- Added an entry-type toggle on the Edit Entry screen
+
 ## 2026-08-12 — Charts, search, multi-currency
 - Added per-book balance show/hide toggle on the "Your Books" list (eye icon)
 - Added a running balance caption under each entry ("Bal $X") showing the
