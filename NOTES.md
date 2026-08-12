@@ -35,25 +35,24 @@ that once and scoping all three together rather than separately.
   modern/tech/minimalist skin
 
 ## To change
-- Financial news rows on Home: swap the generic icon for real per-headline
-  images from an actual news feed — decision pending on which source
-  (see "Open decisions" below).
+-
 
 ## To remove
 -
 
 ## Open decisions
-- News headline images: options for the actual image source —
-  1) a free, no-signup community mirror of NewsAPI.org (saurav.tech) —
-     easiest, but unofficial/best-effort uptime and not truly real-time;
-  2) a proper news API (NewsAPI.org, GNews, Marketaux, etc.) — reliable
-     but needs an API key/signup, so not "no config" anymore;
-  3) parse an RSS feed (e.g. Google News) client-side — no key, but most
-     RSS feeds don't reliably include images and may need a CORS proxy.
-  Waiting on which direction to take before wiring this up.
+-
 
 ## Done
 _(move items here once handled, with the date)_
+
+- Financial news rows on Home now show a real per-headline image: wired
+  up the free, no-signup saurav.tech mirror of NewsAPI.org (business
+  category) to pull live headlines with images, replacing the old static
+  4-link list. Falls back to the original static link list if the fetch
+  fails or returns nothing, and falls back to the generic newspaper icon
+  per-row if a specific headline has no image or its image fails to load
+  (2026-08-13)
 
 - Made the Home screen's Expenses Manager / Loan Calculator buttons bigger
   (larger padding/icon/text, and full-width stacked on narrow phones, side

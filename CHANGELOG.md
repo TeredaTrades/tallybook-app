@@ -3,6 +3,22 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 4) — Real news headline images
+- The Home screen's Financial News section now shows a real image next to
+  each headline instead of the old static 4-link list (Reuters/Bloomberg/
+  Yahoo Finance/CNBC). Pulled from the free, no-signup saurav.tech mirror
+  of NewsAPI.org's business top-headlines feed — each row shows the
+  article's thumbnail, title, and source, and taps through to the full
+  article.
+- Falls back gracefully at two levels: if the feed fetch fails entirely
+  (or returns nothing usable), the section falls back to the original
+  static link list; if an individual headline has no image or the image
+  fails to load, that row falls back to the generic newspaper icon
+  instead of breaking the layout.
+- This mirror is community-run and best-effort (not truly real-time,
+  uptime isn't guaranteed) — noted in NOTES.md as the accepted trade-off
+  for a free, no-key source.
+
 ## 2026-08-13 (cont. 3) — Budget & Trip Organizer, bigger Home buttons
 - Expenses Manager and Loan Calculator buttons on Home are now bigger (more
   padding, larger icon/text) and stack full-width on narrow phones, only

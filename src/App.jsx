@@ -935,6 +935,11 @@ const FINANCIAL_NEWS_LINKS = [
   { title: "Yahoo Finance", url: "https://finance.yahoo.com/" },
   { title: "CNBC — Markets", url: "https://www.cnbc.com/markets/" },
 ];
+// Free, no-signup mirror of NewsAPI.org's top-headlines endpoint (community-run, best-effort
+// uptime, not truly real-time — see NOTES.md "Open decisions"). Used to show a real per-headline
+// image next to each news row on Home; falls back to the static link list above (generic icon)
+// if the fetch fails or returns nothing usable.
+const NEWS_API_URL = "https://saurav.tech/NewsAPI/top-headlines/category/business/us.json";
 // Buy/sell marketplace shortcut — swap this URL for whichever marketplace you prefer.
 const MARKETPLACE_URL = "https://jiji.com.et";
 
@@ -943,6 +948,8 @@ function HomeScreen({ ctx }) {
   const [rates, setRates] = useState(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesError, setRatesError] = useState(false);
+  const [newsArticles, setNewsArticles] = useState(null); // null = not loaded yet / use fallback
+  const [failedImages, setFailedImages] = useState(() => new Set());
 
   const loadRates = useCallback(async () => {
     setRatesLoading(true);
@@ -976,7 +983,26 @@ function HomeScreen({ ctx }) {
     }
   }, []);
 
+  const loadNews = useCallback(async () => {
+    try {
+      const res = await fetch(NEWS_API_URL);
+      if (!res.ok) throw new Error("bad response");
+      const data = await res.json();
+      const articles = (data.articles || [])
+        .filter((a) => a.title && a.url)
+        .slice(0, 6)
+        .map((a) => ({ title: a.title, url: a.url, image: a.urlToImage || null, source: a.source?.name || "" }));
+      if (articles.length > 0) setNewsArticles(articles);
+      // If the mirror returns nothing usable, leave newsArticles as null so the static fallback list renders.
+    } catch {
+      // Leave newsArticles as null — falls back to the static FINANCIAL_NEWS_LINKS list below.
+    }
+  }, []);
+
   useEffect(() => { loadRates(); }, [loadRates]);
+  useEffect(() => { loadNews(); }, [loadNews]);
+
+  const onImageError = (url) => setFailedImages((prev) => new Set(prev).add(url));
 
   return (
     <div className="flex-1 flex flex-col">
@@ -1053,17 +1079,36 @@ function HomeScreen({ ctx }) {
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
           <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-medium text-slate-400 uppercase">
             <Newspaper size={13} /> Financial News
           </div>
-          {FINANCIAL_NEWS_LINKS.map((n) => (
-            <a key={n.url} href={n.url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 px-4 py-3 text-left">
-              <div className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{n.title}</div>
-              <ExternalLink size={14} className="text-slate-300 shrink-0" />
-            </a>
-          ))}
+          {newsArticles ? (
+            newsArticles.map((a) => (
+              <a key={a.url} href={a.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-3 text-left">
+                {a.image && !failedImages.has(a.url) ? (
+                  <img src={a.image} alt="" onError={() => onImageError(a.url)}
+                    className="w-12 h-12 rounded-lg object-cover shrink-0 bg-slate-100" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center text-slate-300 shrink-0"><Newspaper size={18} /></div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 line-clamp-2">{a.title}</div>
+                  {a.source && <div className="text-[11px] text-slate-400 mt-0.5">{a.source}</div>}
+                </div>
+                <ExternalLink size={14} className="text-slate-300 shrink-0" />
+              </a>
+            ))
+          ) : (
+            FINANCIAL_NEWS_LINKS.map((n) => (
+              <a key={n.url} href={n.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-3 text-left">
+                <div className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{n.title}</div>
+                <ExternalLink size={14} className="text-slate-300 shrink-0" />
+              </a>
+            ))
+          )}
         </div>
 
         {/* Not linked yet — waiting on the TeredaTrades URL/Telegram channel to point this at */}
