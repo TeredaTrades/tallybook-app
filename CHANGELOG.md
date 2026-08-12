@@ -3,6 +3,29 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 2) — Exchange rates, home navigation, Add Member, loan calculator fee
+- Fixed the Home exchange rate widget, which had stopped working: the API it called,
+  api.frankfurter.app, has moved to api.frankfurter.dev with different query parameter
+  names and a different response shape. Pointed the fetch at the current domain/params
+  and updated the parsing to match the new response format.
+- Fixed "no way back to Home from other screens" — the bottom nav bar (Home / Cashbooks /
+  Help / Settings) was only shown while exactly one screen deep, so it disappeared the
+  moment you opened a book, a settings sub-page, the loan calculator, etc., leaving only
+  a back arrow that steps back one screen at a time. The bottom nav is now always visible,
+  so any tab (including Home) is always one tap away regardless of how deep you are.
+- Fixed Add Member not working from either place it's offered (a book's Manage Members
+  page, and Settings > Business Team): both screens were missing the bottom padding used
+  elsewhere in the app to keep the floating "to buy/pay" button from sitting on top of
+  page content, so the floating button could intercept taps meant for the Add Member
+  button. Added the same padding fix used on other screens, and the button is now
+  visibly disabled until a name is entered instead of silently doing nothing.
+- Loan Calculator: renamed "Total Paid" to "Total Payable" (summary card and the by-year
+  schedule column). Added an optional "Other mandatory monthly payment" field for fees
+  some lenders charge every month regardless of the loan (e.g. account/insurance fees) —
+  it's added on top of each month's payment rather than folded into the amortization
+  math, and shows up as its own line in the summary and as an extra column in both the
+  monthly and yearly schedule views when set.
+
 ## 2026-08-13 (cont.) — Welcome / Welcome back screens
 - Replaced the old first-launch "pick a business type" screen. First time
   opening the app now shows a Welcome screen: "Create an account" (name +

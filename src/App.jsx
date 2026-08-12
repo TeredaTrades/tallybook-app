@@ -767,9 +767,11 @@ export default function TallyBookApp() {
       <div className="flex-1 overflow-y-auto flex flex-col">
         <Router ctx={ctx} tab={tab} setTab={setTab} />
       </div>
-      {stack.length === 1 && (top.screen === "home" || top.screen === "books" || top.screen === "help" || top.screen === "settings") && (
-        <BottomNav tab={tab} setTab={(t) => { setTab(t); resetTo(t); }} />
-      )}
+      {/* Always visible, not just at the top of the stack — otherwise there was no way back to
+          Home (or any other tab) from a nested screen short of tapping the header's back arrow
+          all the way out one step at a time. Tapping a tab here always resets to that tab's
+          top-level screen regardless of how deep the current stack is. */}
+      <BottomNav tab={tab} setTab={(t) => { setTab(t); resetTo(t); }} />
       <PlannedFAB pendingCount={pendingPlannedCount} onClick={() => setPlannedSidebarOpen(true)} hidden={inputFocused} />
       <PlannedSidebar ctx={ctx} open={plannedSidebarOpen} onClose={() => setPlannedSidebarOpen(false)} />
       <ReminderAlarmModal alarm={activeAlarm} onDismiss={dismissAlarm} onMarkDone={markAlarmDone} onSnooze={snoozeAlarm} />
@@ -918,7 +920,12 @@ function ChooseBusinessType({ onDone }) {
 // per USD (essentially constant since 1997). KES is a manual snapshot too (~129.35 as of 2026-08-13).
 // These three snapshot values should be refreshed periodically since they won't update on their own.
 const LIVE_CURRENCY_CODES = ["EUR", "GBP", "CAD", "CNY", "JPY"]; // fetched live from Frankfurter, USD base
-const FOREX_API_URL = `https://api.frankfurter.app/latest?from=USD&to=${LIVE_CURRENCY_CODES.join(",")}`;
+// api.frankfurter.app (the old domain this used to point at) has moved to api.frankfurter.dev and
+// its query params changed shape (base/quotes instead of from/to) — hitting the old domain still
+// "worked" in the sense of returning 200s, but silently ignored the currency filter and could fail
+// under the app's WebView networking, which is why rates stopped showing. Call the current domain
+// and param names directly.
+const FOREX_API_URL = `https://api.frankfurter.dev/v2/rates?base=USD&quotes=${LIVE_CURRENCY_CODES.join(",")}`;
 const USD_PER_ETB_SNAPSHOT = { ETB: 161.4, AED: 3.6725, KES: 129.35 }; // units of X per 1 USD
 const ETB_DISPLAY_ORDER = ["USD", "GBP", "EUR", "CAD", "CNY", "JPY", "AED", "KES"];
 const FINANCIAL_NEWS_LINKS = [
@@ -943,9 +950,18 @@ function HomeScreen({ ctx }) {
       const res = await fetch(FOREX_API_URL);
       if (!res.ok) throw new Error("bad response");
       const data = await res.json();
+      // The v2 API returns a flat array of { date, base, quote, rate } rows rather than the old
+      // v1-style { rates: { CODE: number } } object — normalize into a rates map here so the rest
+      // of this function doesn't need to know which shape it got.
+      let liveRates = {};
+      if (Array.isArray(data)) {
+        data.forEach((row) => { if (row?.quote) liveRates[row.quote] = row.rate; });
+      } else {
+        liveRates = data.rates || {};
+      }
       const usdPerEtb = USD_PER_ETB_SNAPSHOT.ETB;
       // usdPerUnit[code] = how many units of `code` equal 1 USD
-      const usdPerUnit = { USD: 1, ...(data.rates || {}), ...USD_PER_ETB_SNAPSHOT };
+      const usdPerUnit = { USD: 1, ...liveRates, ...USD_PER_ETB_SNAPSHOT };
       // etbRates[code] = how many ETB equal 1 unit of `code` (birr as the local reference point)
       const etbRates = {};
       ETB_DISPLAY_ORDER.forEach((code) => {
@@ -1930,8 +1946,8 @@ function AddMemberScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Book Settings" onBack={pop} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <TopHeader title="Manage Members" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
         <div className="text-xs font-medium text-slate-400 uppercase">Members</div>
         {members.length === 0 && <div className="text-sm text-slate-400">No members added yet.</div>}
         <div className="space-y-2">
@@ -1957,7 +1973,8 @@ function AddMemberScreen({ ctx, bookId }) {
           <div className="flex gap-2 flex-wrap">
             {ROLES.map((r) => <Chip key={r} active={role === r} onClick={() => setRole(r)}>{r}</Chip>)}
           </div>
-          <button onClick={addMember} className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold">
+          <button onClick={addMember} disabled={!name.trim()}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold ${name.trim() ? "bg-teal-700 text-white" : "bg-slate-200 text-slate-400"}`}>
             <UserPlus size={16} /> Add Member
           </button>
         </div>
@@ -2390,7 +2407,7 @@ function BusinessTeamScreen({ ctx }) {
     <div className="flex-1 flex flex-col">
       <TopHeader title="Business Team" onBack={pop}
         right={<button onClick={() => setAdding((v) => !v)} className="p-2 text-teal-700"><UserPlus size={18} /></button>} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-28">
         <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-teal-700 text-white flex items-center justify-center font-semibold">Y</div>
           <div className="flex-1"><div className="font-medium text-slate-900 text-sm">You</div><div className="text-xs text-slate-500">Primary Admin</div></div>
@@ -2405,7 +2422,8 @@ function BusinessTeamScreen({ ctx }) {
             <div className="flex gap-2 flex-wrap">
               {ROLES.map((r) => <Chip key={r} active={role === r} onClick={() => setRole(r)}>{r}</Chip>)}
             </div>
-            <button onClick={addMember} className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold">
+            <button onClick={addMember} disabled={!name.trim()}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold ${name.trim() ? "bg-teal-700 text-white" : "bg-slate-200 text-slate-400"}`}>
               <UserPlus size={16} /> Add Member
             </button>
           </div>
@@ -2636,6 +2654,7 @@ function toYearlyAmortization(rows) {
     years.push({
       year: years.length + 1,
       principal, interest, payment,
+      months: chunk.length,
       balance: chunk[chunk.length - 1].balance,
     });
   }
@@ -2649,6 +2668,10 @@ function LoanCalculatorScreen({ ctx }) {
   const [rate, setRate] = useState("6");
   const [termValue, setTermValue] = useState("5");
   const [termUnit, setTermUnit] = useState("years");
+  // Some lenders charge a fixed monthly fee (account maintenance, mandatory insurance, etc.) that
+  // applies every month regardless of whether a loan is even outstanding — so it's tracked as a
+  // flat add-on to each month's payment rather than folded into the amortization math itself.
+  const [mandatoryFee, setMandatoryFee] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleView, setScheduleView] = useState("month"); // "month" | "year"
 
@@ -2658,6 +2681,10 @@ function LoanCalculatorScreen({ ctx }) {
     [principal, rate, termMonths]
   );
   const yearlyRows = useMemo(() => toYearlyAmortization(rows), [rows]);
+
+  const mandatoryFeeNum = Number(mandatoryFee) || 0;
+  const monthlyWithFee = payment + mandatoryFeeNum;
+  const totalPayableWithFee = totalPaid + mandatoryFeeNum * rows.length;
 
   const fmt = (n) => `${cur}${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 
@@ -2691,6 +2718,17 @@ function LoanCalculatorScreen({ ctx }) {
               </select>
             </div>
           </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500">Other mandatory monthly payment (optional)</label>
+            <div className="mt-1 flex items-center border border-slate-300 rounded-lg overflow-hidden">
+              <span className="px-3 text-slate-500 bg-slate-50 border-r border-slate-300">{cur}</span>
+              <input type="number" inputMode="decimal" value={mandatoryFee} onChange={(e) => setMandatoryFee(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm outline-none" placeholder="0" />
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              A fixed fee some lenders charge every month (e.g. account or insurance fee) regardless of the loan itself — added on top of each month's payment, not part of the repayment plan.
+            </div>
+          </div>
         </div>
 
         {rows.length > 0 && (
@@ -2698,16 +2736,25 @@ function LoanCalculatorScreen({ ctx }) {
             <div className="bg-teal-700 rounded-xl p-4 text-white">
               <div className="text-xs text-teal-100">Monthly Payment</div>
               <div className="text-2xl font-bold">{fmt(payment)}</div>
+              {mandatoryFeeNum > 0 && (
+                <div className="text-xs text-teal-100 mt-1">+ {fmt(mandatoryFeeNum)} mandatory fee = {fmt(monthlyWithFee)} total per month</div>
+              )}
               <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-teal-600">
                 <div>
                   <div className="text-xs text-teal-100">Total Interest</div>
                   <div className="font-semibold">{fmt(totalInterest)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-teal-100">Total Paid</div>
+                  <div className="text-xs text-teal-100">Total Payable</div>
                   <div className="font-semibold">{fmt(totalPaid)}</div>
                 </div>
               </div>
+              {mandatoryFeeNum > 0 && (
+                <div className="mt-3 pt-3 border-t border-teal-600">
+                  <div className="text-xs text-teal-100">Total Payable incl. mandatory fees</div>
+                  <div className="font-semibold">{fmt(totalPayableWithFee)}</div>
+                </div>
+              )}
             </div>
 
             <button onClick={() => setShowSchedule((s) => !s)}
@@ -2724,18 +2771,20 @@ function LoanCalculatorScreen({ ctx }) {
                 </div>
                 {scheduleView === "month" ? (
                   <>
-                    <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200">
+                    <div className={`grid ${mandatoryFeeNum > 0 ? "grid-cols-5" : "grid-cols-4"} gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200`}>
                       <div>#</div>
                       <div className="text-right">Principal</div>
                       <div className="text-right">Interest</div>
+                      {mandatoryFeeNum > 0 && <div className="text-right">Total</div>}
                       <div className="text-right">Balance</div>
                     </div>
                     <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
                       {rows.map((r) => (
-                        <div key={r.month} className="grid grid-cols-4 gap-1 px-3 py-2 text-xs">
+                        <div key={r.month} className={`grid ${mandatoryFeeNum > 0 ? "grid-cols-5" : "grid-cols-4"} gap-1 px-3 py-2 text-xs`}>
                           <div className="text-slate-500">{r.month}</div>
                           <div className="text-right text-slate-700">{fmt(r.principal)}</div>
                           <div className="text-right text-slate-400">{fmt(r.interest)}</div>
+                          {mandatoryFeeNum > 0 && <div className="text-right text-slate-700">{fmt(r.payment + mandatoryFeeNum)}</div>}
                           <div className="text-right font-medium text-slate-900">{fmt(r.balance)}</div>
                         </div>
                       ))}
@@ -2747,7 +2796,7 @@ function LoanCalculatorScreen({ ctx }) {
                       <div>Year</div>
                       <div className="text-right">Principal</div>
                       <div className="text-right">Interest</div>
-                      <div className="text-right">Total Paid</div>
+                      <div className="text-right">Total Payable</div>
                       <div className="text-right">Balance</div>
                     </div>
                     <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
@@ -2756,7 +2805,7 @@ function LoanCalculatorScreen({ ctx }) {
                           <div className="text-slate-500">{y.year}</div>
                           <div className="text-right text-slate-700">{fmt(y.principal)}</div>
                           <div className="text-right text-slate-400">{fmt(y.interest)}</div>
-                          <div className="text-right text-slate-700">{fmt(y.payment)}</div>
+                          <div className="text-right text-slate-700">{fmt(y.payment + mandatoryFeeNum * y.months)}</div>
                           <div className="text-right font-medium text-slate-900">{fmt(y.balance)}</div>
                         </div>
                       ))}
