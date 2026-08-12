@@ -14,8 +14,6 @@ _(add notes here as you think of them)_
 -
 
 ## To add
-- TeredaTrades link/button — a "Learn about trading" button (About or
-  Settings) linking to the TeredaTrades website and/or Telegram channel
 - Scan receipt — camera/OCR capture that reads a receipt and pre-fills an
   expense entry (amount, maybe merchant/date)
 - Telegram/WhatsApp integration for the tracker — needs scoping: a
@@ -35,8 +33,6 @@ that once and scoping all three together rather than separately.
 - Theme support — dark and light, plus some basic color combos (brown and
   cream, and something pink-based), maybe an Islamic theme or a
   modern/tech/minimalist skin
-- Let the user do minor add/subtract calculations right inside an amount
-  input field, expandable into a bigger calculator
 
 ## To change
 - Financial news rows on Home: swap the generic icon for real per-headline
