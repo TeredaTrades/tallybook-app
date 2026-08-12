@@ -31,6 +31,17 @@ Note: receipt scanning, split-the-bill, and interpreting incoming receipts
 all share the same underlying OCR/receipt-parsing piece — worth building
 that once and scoping all three together rather than separately.
 
+- Simpler ways to add members
+- Theme support — dark and light, plus some basic color combos (brown and
+  cream, and something pink-based), maybe an Islamic theme or a
+  modern/tech/minimalist skin
+- Show the remark associated with an entry directly in the list, so it's
+  visible without opening the entry
+- Let the user do minor add/subtract calculations right inside an amount
+  input field, expandable into a bigger calculator
+- In the loan amortization calculator, add an option to show per-year
+  payables
+
 ## To change
 -
 
