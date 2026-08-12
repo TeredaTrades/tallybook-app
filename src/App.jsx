@@ -5,7 +5,7 @@ import {
   Share2, HelpCircle, BookMarked, Wallet, TrendingUp, TrendingDown, Calendar,
   Clock, Trash2, Download, Printer, Eye, EyeOff, ShieldCheck, Check, ArrowRightLeft,
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
-  CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing
+  CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -615,6 +615,7 @@ function Router({ ctx, tab, setTab }) {
     case "moveRequests": return <MoveRequestsScreen ctx={ctx} />;
     case "businessSettings": return <BusinessSettingsScreen ctx={ctx} />;
     case "appSettings": return <AppSettingsScreen ctx={ctx} />
+    case "loanCalculator": return <LoanCalculatorScreen ctx={ctx} />;
     case "reminders": return <RemindersScreen ctx={ctx} />;
     case "profile": return <ProfileScreen ctx={ctx} />;
     case "about": return <AboutScreen ctx={ctx} />;
@@ -1897,6 +1898,7 @@ function SettingsScreen({ ctx }) {
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />
+          <Item icon={Calculator} title="Loan Calculator" sub="Amortization schedule for any loan" onClick={() => push("loanCalculator")} />
           <Item icon={Bell} title="Reminders" sub="Get notified about things to buy or pay for" onClick={() => push("reminders")} />
           <Item icon={Eye} title="Your Profile" sub="Name, mobile number, email" onClick={() => push("profile")} />
           <Item icon={Info} title="About በጅሮንድ" sub="Privacy policy, T&C, About us" onClick={() => push("about")} />
@@ -2097,6 +2099,132 @@ function AppSettingsScreen({ ctx }) {
             <button onClick={addMode} className="bg-teal-700 text-white px-3 rounded-lg text-sm font-medium">Add</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Loan Amortization Calculator ----------
+function computeAmortization(principal, annualRatePct, termMonths) {
+  const p = Number(principal) || 0;
+  const n = Math.round(Number(termMonths)) || 0;
+  const r = (Number(annualRatePct) || 0) / 100 / 12;
+  if (p <= 0 || n <= 0) return { payment: 0, totalInterest: 0, totalPaid: 0, rows: [] };
+
+  const payment = r === 0 ? p / n : (p * r) / (1 - Math.pow(1 + r, -n));
+  let balance = p;
+  let totalInterest = 0;
+  const rows = [];
+  for (let i = 1; i <= n; i++) {
+    const interest = balance * r;
+    let principalPaid = payment - interest;
+    let pmt = payment;
+    if (i === n || balance - principalPaid < 0) {
+      // last row: pay off exactly what's left, correcting for rounding drift
+      principalPaid = balance;
+      pmt = principalPaid + interest;
+    }
+    balance = Math.max(0, balance - principalPaid);
+    totalInterest += interest;
+    rows.push({ month: i, payment: pmt, principal: principalPaid, interest, balance });
+  }
+  return { payment, totalInterest, totalPaid: p + totalInterest, rows };
+}
+
+function LoanCalculatorScreen({ ctx }) {
+  const { pop, appSettings } = ctx;
+  const cur = appSettings.currency;
+  const [principal, setPrincipal] = useState("10000");
+  const [rate, setRate] = useState("6");
+  const [termValue, setTermValue] = useState("5");
+  const [termUnit, setTermUnit] = useState("years");
+  const [showSchedule, setShowSchedule] = useState(false);
+
+  const termMonths = termUnit === "years" ? (Number(termValue) || 0) * 12 : (Number(termValue) || 0);
+  const { payment, totalInterest, totalPaid, rows } = useMemo(
+    () => computeAmortization(principal, rate, termMonths),
+    [principal, rate, termMonths]
+  );
+
+  const fmt = (n) => `${cur}${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Loan Calculator" subtitle="Amortization schedule" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-slate-500">Loan amount</label>
+            <div className="mt-1 flex items-center border border-slate-300 rounded-lg overflow-hidden">
+              <span className="px-3 text-slate-500 bg-slate-50 border-r border-slate-300">{cur}</span>
+              <input type="number" inputMode="decimal" value={principal} onChange={(e) => setPrincipal(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm outline-none" placeholder="10000" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500">Annual interest rate (%)</label>
+            <input type="number" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)}
+              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none" placeholder="6" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500">Loan term</label>
+            <div className="mt-1 flex gap-2">
+              <input type="number" inputMode="numeric" value={termValue} onChange={(e) => setTermValue(e.target.value)}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none" placeholder="5" />
+              <select value={termUnit} onChange={(e) => setTermUnit(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+                <option value="years">Years</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {rows.length > 0 && (
+          <>
+            <div className="bg-teal-700 rounded-xl p-4 text-white">
+              <div className="text-xs text-teal-100">Monthly Payment</div>
+              <div className="text-2xl font-bold">{fmt(payment)}</div>
+              <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-teal-600">
+                <div>
+                  <div className="text-xs text-teal-100">Total Interest</div>
+                  <div className="font-semibold">{fmt(totalInterest)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-teal-100">Total Paid</div>
+                  <div className="font-semibold">{fmt(totalPaid)}</div>
+                </div>
+              </div>
+            </div>
+
+            <button onClick={() => setShowSchedule((s) => !s)}
+              className="w-full flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3">
+              <span className="font-medium text-slate-900 text-sm">Amortization Schedule ({rows.length} payments)</span>
+              <ChevronDown size={18} className={`text-slate-400 transition-transform ${showSchedule ? "rotate-180" : ""}`} />
+            </button>
+
+            {showSchedule && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200">
+                  <div>#</div>
+                  <div className="text-right">Principal</div>
+                  <div className="text-right">Interest</div>
+                  <div className="text-right">Balance</div>
+                </div>
+                <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                  {rows.map((r) => (
+                    <div key={r.month} className="grid grid-cols-4 gap-1 px-3 py-2 text-xs">
+                      <div className="text-slate-500">{r.month}</div>
+                      <div className="text-right text-slate-700">{fmt(r.principal)}</div>
+                      <div className="text-right text-slate-400">{fmt(r.interest)}</div>
+                      <div className="text-right font-medium text-slate-900">{fmt(r.balance)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

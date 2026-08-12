@@ -3,6 +3,16 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-12 (latest) — Loan amortization calculator
+- Added a Loan Calculator under Settings > General Settings — enter a loan
+  amount, annual interest rate, and term (years or months) to get the
+  monthly payment, total interest, and total amount paid
+- Includes a collapsible full amortization schedule (per-payment principal,
+  interest, and remaining balance), scrollable so it stays usable even for
+  long terms like a 30-year mortgage
+- Standalone tool, not tied to any book — uses the app's configured
+  currency symbol
+
 ## 2026-08-12 (later still) — New app logo, "to buy / to pay for" sidebar, reminders
 - Replaced the app icon/logo with the new wallet-and-shield artwork —
   regenerated the full Android adaptive icon set (legacy square, round, and
