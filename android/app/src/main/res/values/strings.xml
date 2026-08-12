@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">TallyBook</string>
-    <string name="title_activity_main">TallyBook</string>
+    <string name="app_name">በጅሮንድ</string>
+    <string name="title_activity_main">በጅሮንድ</string>
     <string name="package_name">com.teredatrades.tallybook</string>
     <string name="custom_url_scheme">com.teredatrades.tallybook</string>
 </resources>

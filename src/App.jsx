@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Minus, ChevronRight, ChevronDown, ArrowLeft, X, Settings as SettingsIcon,
   Users, FileText, Search, MoreVertical, Building2, UserPlus, Info, Smartphone,
@@ -40,6 +40,12 @@ const entryDateTime = (e) => {
   return d;
 };
 const bookCurrency = (book, appSettings) => (book && book.currency) || appSettings.currency;
+const fmtDateTime = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) +
+    " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+};
 const CHART_COLORS = ["#0f766e", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed", "#db2777", "#65a30d", "#0284c7", "#ea580c"];
 
 // On-device storage only — Capacitor Preferences persists to the phone's
@@ -318,6 +324,7 @@ function Router({ ctx, tab, setTab }) {
     case "settings": return <SettingsScreen ctx={ctx} />;
     case "book": return <BookScreen ctx={ctx} bookId={top.bookId} />;
     case "addEntry": return <AddEntryScreen ctx={ctx} bookId={top.bookId} type={top.type} editEntry={top.editEntry} />;
+    case "entryDetail": return <EntryDetailScreen ctx={ctx} bookId={top.bookId} entryId={top.entryId} />;
     case "bookSettings": return <BookSettingsScreen ctx={ctx} bookId={top.bookId} />;
     case "addMember": return <AddMemberScreen ctx={ctx} bookId={top.bookId} />;
     case "reports": return <ReportsScreen ctx={ctx} bookId={top.bookId} />;
@@ -488,15 +495,40 @@ function SwitchBusinessScreen({ ctx }) {
 
 // ---------- Book screen ----------
 function BookScreen({ ctx, bookId }) {
-  const { activeBusiness, push, pop, getEntries, appSettings, canAddEntries } = ctx;
+  const { activeBusiness, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity } = ctx;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const [entries, setEntries] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
+  const [moveCopyEntry, setMoveCopyEntry] = useState(null);
 
   useEffect(() => { getEntries(bookId).then(setEntries); }, [bookId]);
 
   if (!book) return <EmptyState icon={BookMarked} title="Book not found" />;
+
+  const otherBooks = (activeBusiness?.books || []).filter((b) => b.id !== bookId);
+
+  const doMoveOrCopy = async (targetBookId, mode) => {
+    const entry = moveCopyEntry;
+    if (!entry) return;
+    const targetBook = otherBooks.find((b) => b.id === targetBookId);
+    const stamp = { transferredFrom: book?.name, transferredAt: new Date().toISOString() };
+    const sourceEntries = await getEntries(bookId);
+    const targetEntries = await getEntries(targetBookId);
+    if (mode === "move") {
+      const nextSource = sourceEntries.filter((e) => e.id !== entry.id);
+      await saveEntries(bookId, nextSource);
+      await saveEntries(targetBookId, [...targetEntries, { ...entry, ...stamp }]);
+      await logActivity(bookId, `${viewer.name} moved an entry to ${targetBook?.name}`);
+      await logActivity(targetBookId, `${viewer.name} moved an entry in from ${book?.name}`);
+      setEntries(nextSource);
+    } else {
+      await saveEntries(targetBookId, [...targetEntries, { ...entry, ...stamp, id: uid() }]);
+      await logActivity(bookId, `${viewer.name} copied an entry to ${targetBook?.name}`);
+      await logActivity(targetBookId, `${viewer.name} copied an entry in from ${book?.name}`);
+    }
+    setMoveCopyEntry(null);
+  };
 
   const cur = bookCurrency(book, appSettings);
   const totalIn = (entries || []).filter(e => e.type === "in").reduce((s, e) => s + e.amount, 0);
@@ -576,25 +608,9 @@ function BookScreen({ ctx, bookId }) {
         ) : (
           <div className="divide-y divide-slate-100">
             {visible.map((e) => (
-              <button key={e.id} onClick={() => canAddEntries && push("addEntry", { bookId, editEntry: e })}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${e.type === "in" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
-                  {e.type === "in" ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-slate-900 truncate flex items-center gap-1.5">
-                    {e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
-                    {e.receipt && <Paperclip size={12} className="text-slate-400 shrink-0" />}
-                  </div>
-                  <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className={`font-semibold ${e.type === "in" ? "text-emerald-600" : "text-rose-600"}`}>
-                    {e.type === "in" ? "+" : "-"}{cur}{e.amount.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">Bal {cur}{balanceAfter[e.id].toLocaleString()}</div>
-                </div>
-              </button>
+              <EntryRow key={e.id} e={e} cur={cur} balanceText={balanceAfter[e.id].toLocaleString()}
+                onTap={() => push("entryDetail", { bookId, entryId: e.id })}
+                onLongPress={() => setMoveCopyEntry(e)} />
             ))}
           </div>
         )}
@@ -612,6 +628,175 @@ function BookScreen({ ctx, bookId }) {
           </button>
         </div>
       )}
+
+      {moveCopyEntry && (
+        <MoveCopyModal entry={moveCopyEntry} otherBooks={otherBooks} cur={cur}
+          onClose={() => setMoveCopyEntry(null)} onAction={doMoveOrCopy} />
+      )}
+    </div>
+  );
+}
+
+function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
+  const timerRef = useRef(null);
+  const longPressed = useRef(false);
+
+  const start = () => {
+    longPressed.current = false;
+    timerRef.current = setTimeout(() => { longPressed.current = true; onLongPress(); }, 500);
+  };
+  const cancel = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleClick = () => { if (!longPressed.current) onTap(); };
+
+  return (
+    <button
+      onMouseDown={start} onMouseUp={cancel} onMouseLeave={cancel}
+      onTouchStart={start} onTouchEnd={cancel} onTouchMove={cancel}
+      onContextMenu={(ev) => { ev.preventDefault(); onLongPress(); }}
+      onClick={handleClick}
+      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 select-none">
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${e.type === "in" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+        {e.type === "in" ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-slate-900 truncate flex items-center gap-1.5">
+          {e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
+          {e.receipt && <Paperclip size={12} className="text-slate-400 shrink-0" />}
+        </div>
+        <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className={`font-semibold ${e.type === "in" ? "text-emerald-600" : "text-rose-600"}`}>
+          {e.type === "in" ? "+" : "-"}{cur}{e.amount.toLocaleString()}
+        </div>
+        <div className="text-[11px] text-slate-400 mt-0.5">Bal {cur}{balanceText}</div>
+      </div>
+    </button>
+  );
+}
+
+function MoveCopyModal({ entry, otherBooks, cur, onClose, onAction }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-t-2xl max-h-[75vh] flex flex-col" onClick={(ev) => ev.stopPropagation()}>
+        <div className="p-4 border-b border-slate-100">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold text-slate-900">Move or Copy Entry</div>
+            <button onClick={onClose} className="p-1 text-slate-400"><X size={18} /></button>
+          </div>
+          <div className="text-sm text-slate-500 mt-1">
+            {entry.type === "in" ? "+" : "-"}{cur}{entry.amount.toLocaleString()} · {entry.contact || entry.category || (entry.type === "in" ? "Cash In" : "Cash Out")}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {otherBooks.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-500">No other books in this business to move or copy into.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {otherBooks.map((b) => (
+                <div key={b.id} className="flex items-center justify-between px-4 py-3">
+                  <div className="font-medium text-slate-800 text-sm">{b.name}</div>
+                  <div className="flex gap-2">
+                    <button onClick={() => onAction(b.id, "copy")} className="text-xs font-medium border border-teal-700 text-teal-700 rounded-lg px-3 py-1.5">Copy</button>
+                    <button onClick={() => onAction(b.id, "move")} className="text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-1.5">Move</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ---------- Entry detail ----------
+function EntryDetailScreen({ ctx, bookId, entryId }) {
+  const { pop, push, getEntries, appSettings, activeBusiness, canAddEntries } = ctx;
+  const book = activeBusiness?.books.find((b) => b.id === bookId);
+  const cur = bookCurrency(book, appSettings);
+  const [entry, setEntry] = useState(null);
+
+  useEffect(() => {
+    getEntries(bookId).then((es) => setEntry(es.find((e) => e.id === entryId) || null));
+  }, [bookId, entryId]);
+
+  if (!entry) {
+    return (
+      <div className="flex-1 flex flex-col">
+        <TopHeader title="Entry" onBack={pop} />
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-700" size={24} /></div>
+      </div>
+    );
+  }
+
+  const isIn = entry.type === "in";
+  const methodKind = entry.paymentMode === "Cash" ? "Cash" : "Electronic";
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Entry Details" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className={`rounded-xl p-4 text-center ${isIn ? "bg-emerald-50" : "bg-rose-50"}`}>
+          <div className={`text-xs font-medium ${isIn ? "text-emerald-700" : "text-rose-700"}`}>{isIn ? "Cash In" : "Cash Out"}</div>
+          <div className={`text-2xl font-bold ${isIn ? "text-emerald-700" : "text-rose-700"}`}>{cur}{entry.amount.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1">{methodKind} · {entry.paymentMode}</div>
+        </div>
+
+        {entry.receipt && (
+          <img src={entry.receipt} alt="Receipt" className="w-full max-h-72 object-contain rounded-xl border border-slate-200 bg-white" />
+        )}
+
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          {entry.contact && (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-500">{isIn ? "Received From" : "Paid To"}</span>
+              <span className="text-sm font-medium text-slate-800">{entry.contact}</span>
+            </div>
+          )}
+          {entry.category && (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-500">Category</span>
+              <span className="text-sm font-medium text-slate-800">{entry.category}</span>
+            </div>
+          )}
+          {entry.remark && (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-slate-500">Remark</span>
+              <span className="text-sm font-medium text-slate-800">{entry.remark}</span>
+            </div>
+          )}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-slate-500">Date</span>
+            <span className="text-sm font-medium text-slate-800">{fmtDate(entry.date)} · {entry.time}</span>
+          </div>
+        </div>
+
+        {canAddEntries && (
+          <button onClick={() => push("addEntry", { bookId, editEntry: entry })}
+            className="w-full bg-teal-700 text-white py-2.5 rounded-xl font-semibold">
+            Edit Entry
+          </button>
+        )}
+
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          <div className="px-4 py-3">
+            <div className="text-xs text-slate-500 mb-0.5">Created by</div>
+            <div className="text-sm font-medium text-slate-800">{entry.addedBy || "You"}{entry.createdAt ? ` · ${fmtDateTime(entry.createdAt)}` : ""}</div>
+          </div>
+          <div className="px-4 py-3">
+            <div className="text-xs text-slate-500 mb-0.5">Last edited by</div>
+            <div className="text-sm font-medium text-slate-800">
+              {entry.editedBy ? `${entry.editedBy} · ${fmtDateTime(entry.editedAt)}` : "Never edited"}
+            </div>
+          </div>
+          {entry.transferredFrom && (
+            <div className="px-4 py-3">
+              <div className="text-xs text-slate-500 mb-0.5">Last transferred from</div>
+              <div className="text-sm font-medium text-slate-800">{entry.transferredFrom} · {fmtDateTime(entry.transferredAt)}</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -645,11 +830,12 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
     if (!amt || amt <= 0) return;
     const es = await getEntries(bookId);
     let next;
-    const payload = { ...form, amount: amt, addedBy: viewer.name };
     if (isEdit) {
+      const payload = { ...form, amount: amt, addedBy: editEntry.addedBy, createdAt: editEntry.createdAt, editedBy: viewer.name, editedAt: new Date().toISOString() };
       next = es.map((e) => e.id === editEntry.id ? { ...payload, id: editEntry.id } : e);
       await logActivity(bookId, `${viewer.name} edited an entry (${bookCur}${amt})`);
     } else {
+      const payload = { ...form, amount: amt, addedBy: viewer.name };
       next = [...es, { ...payload, id: uid(), createdAt: new Date().toISOString() }];
       await logActivity(bookId, `${viewer.name} added ${form.type === "in" ? "Cash In" : "Cash Out"} of ${bookCur}${amt}`);
     }
@@ -677,6 +863,22 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
         right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-600"><Trash2 size={18} /></button> : null} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {isEdit && (
+          <div>
+            <div className="text-xs text-slate-500 mb-1.5">Entry Type</div>
+            <div className="flex gap-2">
+              <button onClick={() => setForm({ ...form, type: "in" })}
+                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${isIn ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-500"}`}>
+                <Plus size={16} /> Cash In
+              </button>
+              <button onClick={() => setForm({ ...form, type: "out" })}
+                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${!isIn ? "bg-rose-600 text-white border-rose-600" : "border-slate-300 text-slate-500"}`}>
+                <Minus size={16} /> Cash Out
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <label className="flex-1">
             <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Calendar size={12} /> Date</div>
