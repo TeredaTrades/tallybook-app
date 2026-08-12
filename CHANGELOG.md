@@ -3,6 +3,30 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 — Trading button, birr exchange rates, member fix, inline calculator
+- Added a "Want to learn about trading?" button to Home, below the
+  financial news list — placeholder only, not linked to anything yet
+  (waiting on the TeredaTrades URL/Telegram channel)
+- Reworked the Home exchange rate widget to be birr-first: it now shows
+  1 USD/GBP/EUR/CAD/CNY/JPY/AED/KES in Ethiopian birr instead of the old
+  USD-based EUR/GBP/JPY/ETB/INR/CNY list. EUR/GBP/CAD/CNY/JPY still come
+  live from Frankfurter (USD base, pivoted into birr); ETB, AED, and KES
+  aren't published by any free no-key exchange rate API, so those three
+  use a manually-looked-up snapshot rate (documented in the code) instead
+  of updating live — worth refreshing periodically
+- Fixed a real dead end: Settings > Business Team showed the business's
+  members but had no way to actually add one (just text saying "add
+  members from a book's settings"). Added a working inline add-member
+  form directly on that screen
+- Added an inline calculator to the entry Amount field — you can type a
+  quick expression like "500+120-30" straight into the field and it
+  evaluates live, or tap the calculator icon to expand a small tap-pad
+  for entering it by hand
+- Logged two items in NOTES.md that still need a decision before being
+  built: which source to pull real per-headline images from for the news
+  list, and what "create an account" should actually mean for a fully
+  offline app with no backend
+
 ## 2026-08-12 (cont. 3) — Per-year loan payables view
 - The Loan Calculator's amortization schedule now has a By Month / By Year
   toggle. By Year rolls the monthly payments up into one row per year —
