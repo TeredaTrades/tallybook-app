@@ -3,6 +3,23 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-12 (later still) — New app logo, "to buy / to pay for" sidebar, reminders
+- Replaced the app icon/logo with the new wallet-and-shield artwork —
+  regenerated the full Android adaptive icon set (legacy square, round, and
+  adaptive foreground) at every density (mdpi–xxxhdpi), and updated the
+  adaptive icon background color and web theme-color to match the new navy
+- Added a global "To buy / to pay for" list — a running wishlist separate
+  from any single book. It's reachable from a floating button on every
+  screen (not tucked away in Settings, and it doesn't block the app behind
+  it — it's a slide-over sidebar, not a full-screen modal). Supports
+  add/edit/delete, marking items as bought/paid, and shows a running
+  pending total
+- Added Reminders under Settings — pick a date/time for any pending item
+  on the to-buy/to-pay list and TallyBook schedules a native notification
+  (via the new @capacitor/local-notifications dependency; falls back to a
+  no-op in the browser preview). Added the Android permissions needed for
+  scheduled notifications
+
 ## 2026-08-12 (later) — Entry detail, move/copy, app rename
 - Renamed the app display name (Android app_name / title_activity_main) to
   "በጅሮንድ"

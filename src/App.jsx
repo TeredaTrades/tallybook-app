@@ -5,12 +5,13 @@ import {
   Share2, HelpCircle, BookMarked, Wallet, TrendingUp, TrendingDown, Calendar,
   Clock, Trash2, Download, Printer, Eye, EyeOff, ShieldCheck, Check, ArrowRightLeft,
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
-  CheckSquare, CheckCircle2, Circle
+  CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -147,6 +148,42 @@ async function storeSet(key, value) {
   try { await Preferences.set({ key, value: JSON.stringify(value) }); } catch (e) { console.error("storage set failed", key, e); }
 }
 
+// ---------- reminders (things to buy / to pay for) ----------
+// Native local notifications on Android via @capacitor/local-notifications.
+// In the browser preview (npm run dev) these calls are no-ops so the app keeps working.
+function notifIdFor(itemId) {
+  let h = 0;
+  for (let i = 0; i < itemId.length; i++) h = (h * 31 + itemId.charCodeAt(i)) >>> 0;
+  return h % 2147483647;
+}
+async function checkNotifPermission() {
+  if (!Capacitor.isNativePlatform()) return "granted";
+  try { return (await LocalNotifications.checkPermissions()).display; } catch { return "denied"; }
+}
+async function requestNotifPermissionNative() {
+  if (!Capacitor.isNativePlatform()) return "granted";
+  try { return (await LocalNotifications.requestPermissions()).display; } catch { return "denied"; }
+}
+async function schedulePlannedReminder(item) {
+  if (!Capacitor.isNativePlatform() || !item.reminderAt) return;
+  const at = new Date(item.reminderAt);
+  if (isNaN(at.getTime()) || at.getTime() <= Date.now()) return;
+  try {
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: notifIdFor(item.id),
+        title: `Reminder: ${item.desc}`,
+        body: `Anticipated ${item.amount ? Number(item.amount).toLocaleString() : "0"} · ${item.category}`,
+        schedule: { at },
+      }],
+    });
+  } catch (e) { console.error("schedule reminder failed", e); }
+}
+async function cancelPlannedReminder(item) {
+  if (!Capacitor.isNativePlatform()) return;
+  try { await LocalNotifications.cancel({ notifications: [{ id: notifIdFor(item.id) }] }); } catch {}
+}
+
 // ---------- small UI atoms ----------
 function Chip({ active, children, onClick, tone = "teal" }) {
   const toneMap = {
@@ -210,6 +247,143 @@ function BottomNav({ tab, setTab }) {
   );
 }
 
+// ---------- Planned (things to buy / pay for) sidebar ----------
+// A floating shortcut that's available on every screen — it never blocks the
+// app underneath (it's a slide-over, not a full-screen modal) and isn't
+// buried inside Settings.
+function PlannedFAB({ pendingCount, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="fixed right-4 bottom-24 z-30 w-14 h-14 rounded-full bg-teal-700 text-white shadow-lg shadow-teal-900/20 flex items-center justify-center active:scale-95 transition-transform"
+      title="Things to buy / pay for"
+    >
+      <ClipboardList size={20} />
+      {pendingCount > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+          {pendingCount > 99 ? "99+" : pendingCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function PlannedSidebar({ ctx, open, onClose }) {
+  const { plannedItems, persistPlanned, appSettings, push } = ctx;
+  const [desc, setDesc] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState(appSettings.categories[0] || "Other");
+  const [editingId, setEditingId] = useState(null);
+
+  const cancelEdit = () => { setEditingId(null); setDesc(""); setAmount(""); };
+
+  const pending = plannedItems.filter((p) => !p.done);
+  const done = plannedItems.filter((p) => p.done);
+  const pendingTotal = pending.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  const save = async () => {
+    if (!desc.trim()) return;
+    const amt = parseFloat(amount) || 0;
+    if (editingId) {
+      const next = plannedItems.map((p) => p.id === editingId ? { ...p, desc: desc.trim(), amount: amt, category } : p);
+      await persistPlanned(next);
+    } else {
+      const item = { id: uid(), desc: desc.trim(), amount: amt, category, done: false, createdAt: new Date().toISOString(), reminderAt: null };
+      await persistPlanned([item, ...plannedItems]);
+    }
+    cancelEdit();
+  };
+
+  const startEdit = (p) => { setEditingId(p.id); setDesc(p.desc); setAmount(p.amount ? String(p.amount) : ""); setCategory(p.category); };
+
+  const toggleDone = async (p) => {
+    const next = plannedItems.map((x) => x.id === p.id ? { ...x, done: !x.done } : x);
+    await persistPlanned(next);
+  };
+
+  const remove = async (id) => {
+    if (editingId === id) cancelEdit();
+    const item = plannedItems.find((p) => p.id === id);
+    if (item?.reminderAt) await cancelPlannedReminder(item);
+    await persistPlanned(plannedItems.filter((p) => p.id !== id));
+  };
+
+  return (
+    <>
+      {open && <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />}
+      <div
+        className={`fixed top-0 right-0 h-full w-[86%] max-w-sm bg-white z-50 shadow-2xl flex flex-col transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><ClipboardList size={18} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-slate-900 truncate">To buy / to pay for</div>
+            <div className="text-xs text-slate-500 truncate">A running wishlist, separate from your books</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 shrink-0"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+            {editingId && (
+              <div className="flex items-center justify-between text-xs bg-teal-50 text-teal-700 rounded-lg px-2.5 py-1.5">
+                Editing item <button onClick={cancelEdit} className="underline font-medium">Cancel</button>
+              </div>
+            )}
+            <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="e.g. Rent, groceries, new shoes"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" />
+            <div className="flex gap-2">
+              <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" step="0.01" placeholder="Anticipated amount"
+                className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white" />
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white">
+                {appSettings.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <button onClick={save} className="w-full bg-teal-700 text-white py-2 rounded-lg text-sm font-medium">
+              {editingId ? "Update item" : "Add to list"}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between bg-teal-50 border border-teal-100 rounded-xl px-3 py-2.5">
+            <span className="text-xs font-medium text-teal-800">Pending total ({pending.length})</span>
+            <span className="text-sm font-semibold text-teal-800">{appSettings.currency}{pendingTotal.toLocaleString()}</span>
+          </div>
+
+          {plannedItems.length === 0 ? (
+            <EmptyState icon={ClipboardList} title="Nothing on your list" hint="Add things you plan to buy or bills you need to pay." />
+          ) : (
+            <div className="divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl overflow-hidden">
+              {[...pending, ...done].map((p) => (
+                <div key={p.id} className={`flex items-center gap-2 px-3 py-2.5 ${p.done ? "opacity-50" : ""}`}>
+                  <button onClick={() => toggleDone(p)} className="text-teal-700 shrink-0" title={p.done ? "Mark as pending" : "Mark as bought/paid"}>
+                    {p.done ? <CheckCircle2 size={18} /> : <Circle size={18} className="text-slate-300" />}
+                  </button>
+                  <button onClick={() => !p.done && startEdit(p)} className="flex-1 min-w-0 text-left">
+                    <div className={`text-sm font-medium text-slate-900 truncate ${p.done ? "line-through" : ""}`}>{p.desc}</div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                      <span>{p.category}</span>
+                      {p.reminderAt && (
+                        <span className="flex items-center gap-0.5 text-teal-700"><Bell size={10} /> {fmtDateTime(p.reminderAt)}</span>
+                      )}
+                    </div>
+                  </button>
+                  <span className="text-sm font-medium text-slate-700 shrink-0">{appSettings.currency}{Number(p.amount || 0).toLocaleString()}</span>
+                  <button onClick={() => remove(p.id)} className="p-1 text-slate-300 hover:text-rose-600 shrink-0"><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={() => { onClose(); push("reminders"); }}
+            className="w-full flex items-center justify-center gap-2 text-teal-700 border border-teal-200 rounded-xl py-2.5 text-sm font-medium">
+            <Bell size={15} /> Manage reminders in Settings
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ---------- App ----------
 export default function TallyBookApp() {
   const [loading, setLoading] = useState(true);
@@ -221,6 +395,9 @@ export default function TallyBookApp() {
   const [stack, setStack] = useState([{ screen: "books" }]);
   const [entriesCache, setEntriesCache] = useState({}); // bookId -> entries
   const [activityCache, setActivityCache] = useState({}); // bookId -> activity
+  const [plannedItems, setPlannedItems] = useState([]); // things to buy / pay for (global, not tied to a book)
+  const [plannedSidebarOpen, setPlannedSidebarOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState("unknown");
 
   const top = stack[stack.length - 1];
   const push = (screen, extra = {}) => setStack((s) => [...s, { screen, ...extra }]);
@@ -234,12 +411,15 @@ export default function TallyBookApp() {
       const biz = await storeGet("businesses", []);
       const sess = await storeGet("session", { activeBusinessId: null, viewingAs: null });
       const settings = await storeGet("app-settings", { categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
+      const planned = await storeGet("planned-items", []);
       setOnboarding(ob);
       setBusinesses(biz);
       setAppSettings(settings);
+      setPlannedItems(planned);
       const activeId = sess.activeBusinessId && biz.find(b => b.id === sess.activeBusinessId) ? sess.activeBusinessId : (biz[0]?.id || null);
       setSession({ ...sess, activeBusinessId: activeId });
       setLoading(false);
+      checkNotifPermission().then(setNotifPermission);
     })();
   }, []);
 
@@ -254,6 +434,15 @@ export default function TallyBookApp() {
   const persistSettings = useCallback(async (next) => {
     setAppSettings(next);
     await storeSet("app-settings", next);
+  }, []);
+  const persistPlanned = useCallback(async (next) => {
+    setPlannedItems(next);
+    await storeSet("planned-items", next);
+  }, []);
+  const requestNotifPermission = useCallback(async () => {
+    const p = await requestNotifPermissionNative();
+    setNotifPermission(p);
+    return p;
   }, []);
 
   const activeBusiness = businesses.find((b) => b.id === session.activeBusinessId) || null;
@@ -342,16 +531,21 @@ export default function TallyBookApp() {
     getEntries, saveEntries, getActivity, logActivity,
     createBusiness, createBook,
     push, pop, resetTo, stack, top,
+    plannedItems, persistPlanned, notifPermission, requestNotifPermission,
   };
 
+  const pendingPlannedCount = plannedItems.filter((p) => !p.done).length;
+
   return (
-    <div className="w-full h-screen bg-slate-50 overflow-hidden flex flex-col">
+    <div className="w-full h-screen bg-slate-50 overflow-hidden flex flex-col relative">
       <div className="flex-1 overflow-y-auto flex flex-col">
         <Router ctx={ctx} tab={tab} setTab={setTab} />
       </div>
       {stack.length === 1 && (top.screen === "books" || top.screen === "help" || top.screen === "settings") && (
         <BottomNav tab={tab} setTab={(t) => { setTab(t); resetTo(t); }} />
       )}
+      <PlannedFAB pendingCount={pendingPlannedCount} onClick={() => setPlannedSidebarOpen(true)} />
+      <PlannedSidebar ctx={ctx} open={plannedSidebarOpen} onClose={() => setPlannedSidebarOpen(false)} />
     </div>
   );
 }
@@ -420,7 +614,8 @@ function Router({ ctx, tab, setTab }) {
     case "businessTeam": return <BusinessTeamScreen ctx={ctx} />;
     case "moveRequests": return <MoveRequestsScreen ctx={ctx} />;
     case "businessSettings": return <BusinessSettingsScreen ctx={ctx} />;
-    case "appSettings": return <AppSettingsScreen ctx={ctx} />;
+    case "appSettings": return <AppSettingsScreen ctx={ctx} />
+    case "reminders": return <RemindersScreen ctx={ctx} />;
     case "profile": return <ProfileScreen ctx={ctx} />;
     case "about": return <AboutScreen ctx={ctx} />;
     case "switchBusiness": return <SwitchBusinessScreen ctx={ctx} />;
@@ -1702,6 +1897,7 @@ function SettingsScreen({ ctx }) {
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />
+          <Item icon={Bell} title="Reminders" sub="Get notified about things to buy or pay for" onClick={() => push("reminders")} />
           <Item icon={Eye} title="Your Profile" sub="Name, mobile number, email" onClick={() => push("profile")} />
           <Item icon={Info} title="About በጅሮንድ" sub="Privacy policy, T&C, About us" onClick={() => push("about")} />
         </div>
@@ -1901,6 +2097,77 @@ function AppSettingsScreen({ ctx }) {
             <button onClick={addMode} className="bg-teal-700 text-white px-3 rounded-lg text-sm font-medium">Add</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RemindersScreen({ ctx }) {
+  const { pop, plannedItems, persistPlanned, appSettings, notifPermission, requestNotifPermission } = ctx;
+  const pending = plannedItems.filter((p) => !p.done);
+
+  const setReminder = async (id, iso) => {
+    const item = plannedItems.find((p) => p.id === id);
+    if (!item) return;
+    const nextItem = { ...item, reminderAt: iso };
+    await persistPlanned(plannedItems.map((p) => p.id === id ? nextItem : p));
+    if (iso) await schedulePlannedReminder(nextItem);
+    else await cancelPlannedReminder(item);
+  };
+
+  const onAllow = async () => {
+    const p = await requestNotifPermission();
+    if (p !== "granted") {
+      alert("Notifications weren't allowed. You can still set reminder times, but you won't get a native alert — allow notifications from your phone's app settings to enable them.");
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Reminders" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0">
+            {notifPermission === "granted" ? <BellRing size={16} /> : <BellOff size={16} />}
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-slate-800 text-sm">Notifications</div>
+            <div className="text-xs text-slate-500">
+              {notifPermission === "granted" ? "Allowed on this device" : "Allow notifications to get native alerts at the time you pick"}
+            </div>
+          </div>
+          {notifPermission !== "granted" && (
+            <button onClick={onAllow} className="text-xs font-medium text-teal-700 border border-teal-200 rounded-lg px-3 py-1.5 shrink-0">Allow</button>
+          )}
+        </div>
+
+        <p className="text-xs text-slate-500 px-1">
+          Set a date and time for any pending item on your "to buy / to pay for" list, and TallyBook will remind you.
+        </p>
+
+        {pending.length === 0 ? (
+          <EmptyState icon={Bell} title="Nothing to remind you about" hint='Add items from the list icon that floats on any screen, then come back here to set reminders.' />
+        ) : (
+          <div className="space-y-2">
+            {pending.map((p) => (
+              <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-3.5">
+                <div className="font-medium text-slate-900 text-sm mb-0.5">{p.desc}</div>
+                <div className="text-xs text-slate-500 mb-2">{p.category} · {appSettings.currency}{Number(p.amount || 0).toLocaleString()}</div>
+                <div className="flex gap-2">
+                  <input
+                    type="datetime-local"
+                    defaultValue={p.reminderAt ? p.reminderAt.slice(0, 16) : ""}
+                    onChange={(e) => setReminder(p.id, e.target.value ? new Date(e.target.value).toISOString() : null)}
+                    className="flex-1 min-w-0 border border-slate-300 rounded-lg px-2.5 py-2 text-sm"
+                  />
+                  {p.reminderAt && (
+                    <button onClick={() => setReminder(p.id, null)} className="text-xs text-rose-600 border border-rose-200 rounded-lg px-2.5 shrink-0">Clear</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
