@@ -3,6 +3,11 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-12 (cont. 2) — Show remark in the entries list
+- The entries list now shows an entry's remark right in the row (below the
+  date/time/payment-mode line), so it's visible at a glance without opening
+  the entry — previously it was only visible on the Entry Detail screen.
+
 ## 2026-08-12 (latest) — Home landing page, louder reminders, layout fix
 - Added a Home landing screen — now the first thing you land on when opening
   the app (new first tab in the bottom nav). It has Expenses Manager and

@@ -1263,6 +1263,7 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
           {e.receipt && <Paperclip size={12} className="text-slate-400 shrink-0" />}
         </div>
         <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
+        {e.remark && <div className="text-xs text-slate-400 truncate italic mt-0.5">"{e.remark}"</div>}
       </div>
       <div className="text-right shrink-0">
         <div className={`font-semibold ${e.type === "in" ? "text-emerald-700" : "text-rose-700"}`}>

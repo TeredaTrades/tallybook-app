@@ -35,8 +35,6 @@ that once and scoping all three together rather than separately.
 - Theme support — dark and light, plus some basic color combos (brown and
   cream, and something pink-based), maybe an Islamic theme or a
   modern/tech/minimalist skin
-- Show the remark associated with an entry directly in the list, so it's
-  visible without opening the entry
 - Let the user do minor add/subtract calculations right inside an amount
   input field, expandable into a bigger calculator
 - In the loan amortization calculator, add an option to show per-year
@@ -58,3 +56,4 @@ _(move items here once handled, with the date)_
   marketplace link, forex rates, financial news links (2026-08-12)
 - Fixed floating button covering the Save button when naming/renaming a
   book (2026-08-12)
+- Show entry remark directly in the entries list (2026-08-12)
