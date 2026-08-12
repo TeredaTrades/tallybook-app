@@ -55,6 +55,13 @@ that once and scoping all three together rather than separately.
 ## Done
 _(move items here once handled, with the date)_
 
+- Made the Home screen's Expenses Manager / Loan Calculator buttons bigger
+  (larger padding/icon/text, and full-width stacked on narrow phones, side
+  by side only on wider screens). Added a Budget button below them (income
+  vs. expenses, what remains, and splitting the remainder into named
+  folders like Savings/Vacation) and a Trip Organizer button below that
+  (per-trip destination/dates/budget, a packing/to-do checklist, and a
+  notes field for plans) — each opens its own page (2026-08-13)
 - Replaced the old "pick a business type" first-launch screen with a
   proper Welcome flow: first time opening the app now shows "Welcome —
   create an account or use without an account" (name + local PIN, no

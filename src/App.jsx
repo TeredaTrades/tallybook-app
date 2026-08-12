@@ -6,7 +6,8 @@ import {
   Clock, Trash2, Download, Printer, Eye, EyeOff, ShieldCheck, Check, ArrowRightLeft,
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
   CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
-  Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX
+  Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX,
+  PiggyBank, Plane, MapPin, Luggage
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -985,20 +986,34 @@ function HomeScreen({ ctx }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button onClick={() => push("books")}
-            className="bg-teal-700 text-white rounded-xl p-4 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-            <Wallet size={22} />
-            <div className="font-semibold text-sm leading-tight">Expenses Manager</div>
-            <div className="text-[11px] text-teal-100">Books, entries & reports</div>
+            className="bg-teal-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <Wallet size={26} />
+            <div className="font-semibold text-base leading-tight">Expenses Manager</div>
+            <div className="text-xs text-teal-100">Books, entries & reports</div>
           </button>
           <button onClick={() => push("loanCalculator")}
-            className="bg-slate-800 text-white rounded-xl p-4 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-            <Calculator size={22} />
-            <div className="font-semibold text-sm leading-tight">Loan Calculator</div>
-            <div className="text-[11px] text-slate-300">Payments & amortization</div>
+            className="bg-slate-800 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <Calculator size={26} />
+            <div className="font-semibold text-base leading-tight">Loan Calculator</div>
+            <div className="text-xs text-slate-300">Payments & amortization</div>
           </button>
         </div>
+
+        <button onClick={() => push("budget")}
+          className="w-full bg-amber-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+          <PiggyBank size={26} />
+          <div className="font-semibold text-base leading-tight">Budget</div>
+          <div className="text-xs text-amber-100">Plan income, expenses & where the rest goes</div>
+        </button>
+
+        <button onClick={() => push("tripOrganizer")}
+          className="w-full bg-sky-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+          <Plane size={26} />
+          <div className="font-semibold text-base leading-tight">Trip Organizer</div>
+          <div className="text-xs text-sky-100">Plan destinations, budget & packing</div>
+        </button>
 
         <a href={MARKETPLACE_URL} target="_blank" rel="noopener noreferrer"
           className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-4">
@@ -1084,6 +1099,9 @@ function Router({ ctx, tab, setTab }) {
     case "businessSettings": return <BusinessSettingsScreen ctx={ctx} />;
     case "appSettings": return <AppSettingsScreen ctx={ctx} />
     case "loanCalculator": return <LoanCalculatorScreen ctx={ctx} />;
+    case "budget": return <BudgetScreen ctx={ctx} />;
+    case "tripOrganizer": return <TripOrganizerScreen ctx={ctx} />;
+    case "tripDetail": return <TripDetailScreen ctx={ctx} tripId={top.tripId} />;
     case "reminders": return <RemindersScreen ctx={ctx} />;
     case "profile": return <ProfileScreen ctx={ctx} />;
     case "about": return <AboutScreen ctx={ctx} />;
@@ -2816,6 +2834,298 @@ function LoanCalculatorScreen({ ctx }) {
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Budget planner ----------
+const emptyBudget = { income: [], expenses: [], allocations: [] };
+
+function BudgetScreen({ ctx }) {
+  const { pop, appSettings } = ctx;
+  const cur = appSettings.currency;
+  const [budget, setBudget] = useState(emptyBudget);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => { storeGet("budget-plan", emptyBudget).then((b) => { setBudget(b); setLoaded(true); }); }, []);
+
+  const save = async (next) => { setBudget(next); if (loaded) await storeSet("budget-plan", next); };
+
+  const addRow = (listKey, presetLabel = "") => {
+    save({ ...budget, [listKey]: [...budget[listKey], { id: uid(), label: presetLabel, amount: "" }] });
+  };
+  const updateRow = (listKey, id, field, value) => {
+    save({ ...budget, [listKey]: budget[listKey].map((r) => r.id === id ? { ...r, [field]: value } : r) });
+  };
+  const removeRow = (listKey, id) => {
+    save({ ...budget, [listKey]: budget[listKey].filter((r) => r.id !== id) });
+  };
+
+  const sum = (list) => list.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+  const totalIncome = sum(budget.income);
+  const totalExpenses = sum(budget.expenses);
+  const remainder = totalIncome - totalExpenses;
+  const totalAllocated = sum(budget.allocations);
+  const unallocated = remainder - totalAllocated;
+  const fmt = (n) => `${cur}${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+  const Row = ({ listKey, row, labelPlaceholder }) => (
+    <div className="flex items-center gap-2">
+      <input value={row.label} onChange={(e) => updateRow(listKey, row.id, "label", e.target.value)}
+        placeholder={labelPlaceholder} className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+      <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden shrink-0 w-32">
+        <span className="px-2 text-slate-400 text-xs bg-slate-50 border-r border-slate-300">{cur}</span>
+        <input type="number" inputMode="decimal" value={row.amount} onChange={(e) => updateRow(listKey, row.id, "amount", e.target.value)}
+          placeholder="0" className="flex-1 min-w-0 px-2 py-2 text-sm outline-none" />
+      </div>
+      <button onClick={() => removeRow(listKey, row.id)} className="p-2 text-slate-300 hover:text-rose-500 shrink-0"><Trash2 size={16} /></button>
+    </div>
+  );
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Budget" subtitle="Income, expenses & where the rest goes" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-10">
+
+        <div className={`rounded-xl p-4 text-white ${remainder >= 0 ? "bg-teal-700" : "bg-rose-700"}`}>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-white/70">Expected Income</div>
+              <div className="font-semibold">{fmt(totalIncome)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-white/70">Expected Expenses</div>
+              <div className="font-semibold">{fmt(totalExpenses)}</div>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/25">
+            <div className="text-xs text-white/70">{remainder >= 0 ? "What will remain" : "Shortfall"}</div>
+            <div className="text-2xl font-bold">{fmt(Math.abs(remainder))}</div>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-800 text-sm">Expected Income</div>
+            <div className="text-xs text-slate-400">Total {fmt(totalIncome)}</div>
+          </div>
+          {budget.income.map((r) => <Row key={r.id} listKey="income" row={r} labelPlaceholder="e.g. Salary" />)}
+          <button onClick={() => addRow("income")} className="w-full flex items-center justify-center gap-1.5 text-teal-700 text-sm font-medium border border-dashed border-teal-300 rounded-lg py-2">
+            <Plus size={15} /> Add income source
+          </button>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-800 text-sm">Expected Expenses</div>
+            <div className="text-xs text-slate-400">Total {fmt(totalExpenses)}</div>
+          </div>
+          {budget.expenses.map((r) => <Row key={r.id} listKey="expenses" row={r} labelPlaceholder="e.g. Rent" />)}
+          <button onClick={() => addRow("expenses")} className="w-full flex items-center justify-center gap-1.5 text-teal-700 text-sm font-medium border border-dashed border-teal-300 rounded-lg py-2">
+            <Plus size={15} /> Add expense
+          </button>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+          <div className="font-medium text-slate-800 text-sm">Where should the remainder go?</div>
+          <div className="text-xs text-slate-400 -mt-1">
+            Split what's left ({fmt(remainder)}) between savings, a vacation fund, or anything else you're planning for.
+          </div>
+          {budget.allocations.map((r) => <Row key={r.id} listKey="allocations" row={r} labelPlaceholder="e.g. Savings" />)}
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => addRow("allocations", "Savings")} className="text-xs font-medium text-teal-700 bg-teal-50 rounded-full px-3 py-1.5 flex items-center gap-1"><PiggyBank size={13} /> Savings folder</button>
+            <button onClick={() => addRow("allocations", "Vacation Plan")} className="text-xs font-medium text-sky-700 bg-sky-50 rounded-full px-3 py-1.5 flex items-center gap-1"><Plane size={13} /> Vacation folder</button>
+            <button onClick={() => addRow("allocations")} className="text-xs font-medium text-slate-600 bg-slate-100 rounded-full px-3 py-1.5 flex items-center gap-1"><Plus size={13} /> Other</button>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-sm">
+            <span className="text-slate-500">Allocated</span>
+            <span className="font-medium text-slate-800">{fmt(totalAllocated)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">{unallocated >= 0 ? "Left unallocated" : "Over-allocated by"}</span>
+            <span className={`font-medium ${unallocated < 0 ? "text-rose-600" : "text-slate-800"}`}>{fmt(Math.abs(unallocated))}</span>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-xs text-amber-800 leading-relaxed">
+          A common rule of thumb is 50/30/20 — roughly 50% of income to needs, 30% to wants, and 20% to
+          savings or debt paydown. It's a starting point, not a rule — adjust the split above to fit your
+          own goals, and revisit this budget whenever your income or expenses change.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Trip organizer ----------
+function TripOrganizerScreen({ ctx }) {
+  const { pop, push } = ctx;
+  const [trips, setTrips] = useState([]);
+  const [name, setName] = useState("");
+
+  useEffect(() => { storeGet("trips", []).then(setTrips); }, []);
+
+  const addTrip = async () => {
+    if (!name.trim()) return;
+    const trip = { id: uid(), name: name.trim(), destination: "", startDate: "", endDate: "", budget: "", notes: "", checklist: [] };
+    const next = [trip, ...trips];
+    setTrips(next);
+    await storeSet("trips", next);
+    setName("");
+    push("tripDetail", { tripId: trip.id });
+  };
+
+  const removeTrip = async (id) => {
+    const next = trips.filter((t) => t.id !== id);
+    setTrips(next);
+    await storeSet("trips", next);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Trip Organizer" subtitle="Plan your trips" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+          <div className="font-medium text-slate-800 text-sm">New trip</div>
+          <div className="flex gap-2">
+            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTrip()}
+              placeholder="Trip name, e.g. Bahir Dar Getaway" className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <button onClick={addTrip} className="bg-sky-700 text-white rounded-lg px-4 py-2 text-sm font-medium shrink-0">Add</button>
+          </div>
+        </div>
+
+        {trips.length === 0 ? (
+          <EmptyState icon={Plane} title="No trips yet" hint="Add a trip above to start planning dates, budget, and a packing checklist." />
+        ) : (
+          <div className="space-y-2">
+            {trips.map((t) => (
+              <button key={t.id} onClick={() => push("tripDetail", { tripId: t.id })}
+                className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-4 text-left">
+                <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center text-sky-700 shrink-0"><Luggage size={18} /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-slate-900 text-sm truncate">{t.name}</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {t.destination || "No destination set"}{t.startDate ? ` · ${fmtDate(t.startDate)}` : ""}
+                  </div>
+                </div>
+                <span onClick={(e) => { e.stopPropagation(); removeTrip(t.id); }} className="p-1.5 text-slate-300 hover:text-rose-500 shrink-0"><Trash2 size={16} /></span>
+                <ChevronRight size={16} className="text-slate-300 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TripDetailScreen({ ctx, tripId }) {
+  const { pop, appSettings } = ctx;
+  const cur = appSettings.currency;
+  const [trips, setTrips] = useState([]);
+  const [checklistText, setChecklistText] = useState("");
+  const trip = trips.find((t) => t.id === tripId);
+
+  useEffect(() => { storeGet("trips", []).then(setTrips); }, []);
+
+  const save = async (next) => { setTrips(next); await storeSet("trips", next); };
+  const update = (field, value) => {
+    save(trips.map((t) => t.id === tripId ? { ...t, [field]: value } : t));
+  };
+
+  const addChecklistItem = () => {
+    if (!checklistText.trim() || !trip) return;
+    const item = { id: uid(), text: checklistText.trim(), checked: false };
+    update("checklist", [...(trip.checklist || []), item]);
+    setChecklistText("");
+  };
+  const toggleChecklistItem = (id) => {
+    update("checklist", (trip.checklist || []).map((i) => i.id === id ? { ...i, checked: !i.checked } : i));
+  };
+  const removeChecklistItem = (id) => {
+    update("checklist", (trip.checklist || []).filter((i) => i.id !== id));
+  };
+
+  if (!trip) {
+    return (
+      <div className="flex-1 flex flex-col">
+        <TopHeader title="Trip" onBack={pop} />
+        <div className="flex-1 flex items-center justify-center text-sm text-slate-400">Loading…</div>
+      </div>
+    );
+  }
+
+  const checklist = trip.checklist || [];
+  const packedCount = checklist.filter((i) => i.checked).length;
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title={trip.name} subtitle="Trip details" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-10">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <label className="block">
+            <div className="text-xs text-slate-500 mb-1">Trip name</div>
+            <input value={trip.name} onChange={(e) => update("name", e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </label>
+          <label className="block">
+            <div className="text-xs text-slate-500 mb-1">Destination</div>
+            <input value={trip.destination} onChange={(e) => update("destination", e.target.value)} placeholder="e.g. Bahir Dar, Ethiopia"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <div className="text-xs text-slate-500 mb-1">Start date</div>
+              <input type="date" value={trip.startDate} onChange={(e) => update("startDate", e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </label>
+            <label className="block">
+              <div className="text-xs text-slate-500 mb-1">End date</div>
+              <input type="date" value={trip.endDate} onChange={(e) => update("endDate", e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </label>
+          </div>
+          <label className="block">
+            <div className="text-xs text-slate-500 mb-1">Trip budget</div>
+            <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden">
+              <span className="px-3 text-slate-500 bg-slate-50 border-r border-slate-300">{cur}</span>
+              <input type="number" inputMode="decimal" value={trip.budget} onChange={(e) => update("budget", e.target.value)}
+                placeholder="0" className="flex-1 min-w-0 px-3 py-2 text-sm outline-none" />
+            </div>
+          </label>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="font-medium text-slate-800 text-sm flex items-center gap-1.5"><ClipboardList size={15} className="text-sky-700" /> Packing / To-do checklist</div>
+            {checklist.length > 0 && <div className="text-xs text-slate-400">{packedCount}/{checklist.length} done</div>}
+          </div>
+          <div className="flex gap-2">
+            <input value={checklistText} onChange={(e) => setChecklistText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addChecklistItem()}
+              placeholder="e.g. Passport, tickets, sunscreen…" className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <button onClick={addChecklistItem} className="bg-sky-700 text-white rounded-lg px-3 shrink-0"><Plus size={16} /></button>
+          </div>
+          {checklist.length === 0 ? (
+            <div className="text-xs text-slate-400 px-1">Nothing on the list yet.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {checklist.map((i) => (
+                <div key={i.id} className="flex items-center gap-2.5 py-2">
+                  <button onClick={() => toggleChecklistItem(i.id)} className="shrink-0 text-sky-700">
+                    {i.checked ? <CheckSquare size={18} /> : <Circle size={18} className="text-slate-300" />}
+                  </button>
+                  <span className={`flex-1 min-w-0 text-sm ${i.checked ? "line-through text-slate-400" : "text-slate-800"}`}>{i.text}</span>
+                  <button onClick={() => removeChecklistItem(i.id)} className="p-1 text-slate-300 hover:text-rose-500 shrink-0"><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-1.5">
+          <div className="font-medium text-slate-800 text-sm flex items-center gap-1.5"><MapPin size={15} className="text-sky-700" /> Plans & notes</div>
+          <textarea value={trip.notes} onChange={(e) => update("notes", e.target.value)} rows={4}
+            placeholder="Itinerary ideas, places to visit, bookings to confirm…"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none" />
+        </div>
       </div>
     </div>
   );

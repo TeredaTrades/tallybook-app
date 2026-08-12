@@ -3,6 +3,25 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 3) — Budget & Trip Organizer, bigger Home buttons
+- Expenses Manager and Loan Calculator buttons on Home are now bigger (more
+  padding, larger icon/text) and stack full-width on narrow phones, only
+  sitting side by side once the screen is wide enough.
+- Added a Budget button on Home, below those two. Opens its own page: add
+  any number of expected income sources and expected expenses, see the
+  total income, total expenses, and what will remain (or the shortfall),
+  then split that remainder across named folders — quick-add chips for
+  Savings and Vacation Plan, or add a custom one — with a running
+  allocated/unallocated total. Includes a short 50/30/20-rule note as a
+  general budgeting reference.
+- Added a Trip Organizer button on Home, below Budget. Opens its own page:
+  create any number of trips, each with a destination, start/end dates,
+  and a trip budget, plus a per-trip packing/to-do checklist (add, check
+  off, remove items) and a free-form plans/notes field for itinerary
+  ideas and bookings to confirm.
+- Both are stored on-device only (same local storage approach as the rest
+  of the app), independent of the multi-business books data.
+
 ## 2026-08-13 (cont. 2) — Exchange rates, home navigation, Add Member, loan calculator fee
 - Fixed the Home exchange rate widget, which had stopped working: the API it called,
   api.frankfurter.app, has moved to api.frankfurter.dev with different query parameter
