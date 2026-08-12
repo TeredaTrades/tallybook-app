@@ -2382,6 +2382,25 @@ function computeAmortization(principal, annualRatePct, termMonths) {
   return { payment, totalInterest, totalPaid: p + totalInterest, rows };
 }
 
+// Rolls the monthly amortization rows up into one row per year — how much
+// principal/interest/total you pay across that year, and the balance left
+// once the year's last payment is made.
+function toYearlyAmortization(rows) {
+  const years = [];
+  for (let i = 0; i < rows.length; i += 12) {
+    const chunk = rows.slice(i, i + 12);
+    const principal = chunk.reduce((s, r) => s + r.principal, 0);
+    const interest = chunk.reduce((s, r) => s + r.interest, 0);
+    const payment = chunk.reduce((s, r) => s + r.payment, 0);
+    years.push({
+      year: years.length + 1,
+      principal, interest, payment,
+      balance: chunk[chunk.length - 1].balance,
+    });
+  }
+  return years;
+}
+
 function LoanCalculatorScreen({ ctx }) {
   const { pop, appSettings } = ctx;
   const cur = appSettings.currency;
@@ -2390,12 +2409,14 @@ function LoanCalculatorScreen({ ctx }) {
   const [termValue, setTermValue] = useState("5");
   const [termUnit, setTermUnit] = useState("years");
   const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleView, setScheduleView] = useState("month"); // "month" | "year"
 
   const termMonths = termUnit === "years" ? (Number(termValue) || 0) * 12 : (Number(termValue) || 0);
   const { payment, totalInterest, totalPaid, rows } = useMemo(
     () => computeAmortization(principal, rate, termMonths),
     [principal, rate, termMonths]
   );
+  const yearlyRows = useMemo(() => toYearlyAmortization(rows), [rows]);
 
   const fmt = (n) => `${cur}${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 
@@ -2456,22 +2477,51 @@ function LoanCalculatorScreen({ ctx }) {
 
             {showSchedule && (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200">
-                  <div>#</div>
-                  <div className="text-right">Principal</div>
-                  <div className="text-right">Interest</div>
-                  <div className="text-right">Balance</div>
+                <div className="flex gap-2 px-3 py-2 border-b border-slate-200">
+                  <Chip active={scheduleView === "month"} onClick={() => setScheduleView("month")}>By Month</Chip>
+                  <Chip active={scheduleView === "year"} onClick={() => setScheduleView("year")}>By Year</Chip>
                 </div>
-                <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
-                  {rows.map((r) => (
-                    <div key={r.month} className="grid grid-cols-4 gap-1 px-3 py-2 text-xs">
-                      <div className="text-slate-500">{r.month}</div>
-                      <div className="text-right text-slate-700">{fmt(r.principal)}</div>
-                      <div className="text-right text-slate-400">{fmt(r.interest)}</div>
-                      <div className="text-right font-medium text-slate-900">{fmt(r.balance)}</div>
+                {scheduleView === "month" ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200">
+                      <div>#</div>
+                      <div className="text-right">Principal</div>
+                      <div className="text-right">Interest</div>
+                      <div className="text-right">Balance</div>
                     </div>
-                  ))}
-                </div>
+                    <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                      {rows.map((r) => (
+                        <div key={r.month} className="grid grid-cols-4 gap-1 px-3 py-2 text-xs">
+                          <div className="text-slate-500">{r.month}</div>
+                          <div className="text-right text-slate-700">{fmt(r.principal)}</div>
+                          <div className="text-right text-slate-400">{fmt(r.interest)}</div>
+                          <div className="text-right font-medium text-slate-900">{fmt(r.balance)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-5 gap-1 px-3 py-2 bg-slate-50 text-xs font-medium text-slate-500 border-b border-slate-200">
+                      <div>Year</div>
+                      <div className="text-right">Principal</div>
+                      <div className="text-right">Interest</div>
+                      <div className="text-right">Total Paid</div>
+                      <div className="text-right">Balance</div>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                      {yearlyRows.map((y) => (
+                        <div key={y.year} className="grid grid-cols-5 gap-1 px-3 py-2 text-xs">
+                          <div className="text-slate-500">{y.year}</div>
+                          <div className="text-right text-slate-700">{fmt(y.principal)}</div>
+                          <div className="text-right text-slate-400">{fmt(y.interest)}</div>
+                          <div className="text-right text-slate-700">{fmt(y.payment)}</div>
+                          <div className="text-right font-medium text-slate-900">{fmt(y.balance)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>

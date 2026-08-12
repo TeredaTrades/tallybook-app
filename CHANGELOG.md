@@ -3,6 +3,13 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-12 (cont. 3) — Per-year loan payables view
+- The Loan Calculator's amortization schedule now has a By Month / By Year
+  toggle. By Year rolls the monthly payments up into one row per year —
+  total principal paid, total interest paid, total paid, and remaining
+  balance at year-end — so you can see the shape of a long loan (e.g. a
+  30-year mortgage) without scrolling through hundreds of monthly rows.
+
 ## 2026-08-12 (cont. 2) — Show remark in the entries list
 - The entries list now shows an entry's remark right in the row (below the
   date/time/payment-mode line), so it's visible at a glance without opening

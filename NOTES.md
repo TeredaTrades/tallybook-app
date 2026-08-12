@@ -37,8 +37,6 @@ that once and scoping all three together rather than separately.
   modern/tech/minimalist skin
 - Let the user do minor add/subtract calculations right inside an amount
   input field, expandable into a bigger calculator
-- In the loan amortization calculator, add an option to show per-year
-  payables
 
 ## To change
 -
@@ -57,3 +55,4 @@ _(move items here once handled, with the date)_
 - Fixed floating button covering the Save button when naming/renaming a
   book (2026-08-12)
 - Show entry remark directly in the entries list (2026-08-12)
+- Per-year payables view in the Loan Calculator (2026-08-12)
