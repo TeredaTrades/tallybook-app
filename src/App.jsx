@@ -64,8 +64,8 @@ async function storeSet(key, value) {
 function Chip({ active, children, onClick, tone = "teal" }) {
   const toneMap = {
     teal: active ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300",
-    emerald: active ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-300",
-    rose: active ? "bg-rose-600 text-white border-rose-600" : "bg-white text-slate-600 border-slate-300",
+    emerald: active ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-600 border-slate-300",
+    rose: active ? "bg-rose-700 text-white border-rose-700" : "bg-white text-slate-600 border-slate-300",
   };
   return (
     <button onClick={onClick} className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-colors ${toneMap[tone]}`}>
@@ -416,7 +416,7 @@ function BooksScreen({ ctx }) {
                 </button>
                 <div className="flex items-center gap-2 shrink-0">
                   {!bk.hidden && (
-                    <span className={`text-sm font-semibold ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <span className={`text-sm font-semibold ${net >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
                       {net < 0 ? "-" : ""}{c}{Math.abs(net).toLocaleString()}
                     </span>
                   )}
@@ -586,15 +586,15 @@ function BookScreen({ ctx, bookId }) {
       <div className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-slate-500">Net Balance</span>
-          <span className={`font-bold text-lg ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{cur}{Math.abs(net).toLocaleString()}</span>
+          <span className={`font-bold text-lg ${net >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{cur}{Math.abs(net).toLocaleString()}</span>
         </div>
         <div className="flex items-center justify-between mt-1">
           <span className="text-sm text-slate-500">Total In (+)</span>
-          <span className="text-emerald-600 font-medium">{cur}{totalIn.toLocaleString()}</span>
+          <span className="text-emerald-700 font-medium">{cur}{totalIn.toLocaleString()}</span>
         </div>
         <div className="flex items-center justify-between mt-1">
           <span className="text-sm text-slate-500">Total Out (-)</span>
-          <span className="text-rose-600 font-medium">{cur}{totalOut.toLocaleString()}</span>
+          <span className="text-rose-700 font-medium">{cur}{totalOut.toLocaleString()}</span>
         </div>
       </div>
 
@@ -619,11 +619,11 @@ function BookScreen({ ctx, bookId }) {
       {canAddEntries && (
         <div className="p-3 border-t border-slate-200 bg-white flex gap-2">
           <button onClick={() => push("addEntry", { bookId, type: "in" })}
-            className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 text-white py-2.5 rounded-xl font-semibold">
+            className="flex-1 flex items-center justify-center gap-1 bg-emerald-700 text-white py-2.5 rounded-xl font-semibold">
             <Plus size={18} /> Cash In
           </button>
           <button onClick={() => push("addEntry", { bookId, type: "out" })}
-            className="flex-1 flex items-center justify-center gap-1 bg-rose-600 text-white py-2.5 rounded-xl font-semibold">
+            className="flex-1 flex items-center justify-center gap-1 bg-rose-700 text-white py-2.5 rounded-xl font-semibold">
             <Minus size={18} /> Cash Out
           </button>
         </div>
@@ -655,7 +655,7 @@ function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
       onContextMenu={(ev) => { ev.preventDefault(); onLongPress(); }}
       onClick={handleClick}
       className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 select-none">
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${e.type === "in" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${e.type === "in" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
         {e.type === "in" ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
       </div>
       <div className="flex-1 min-w-0">
@@ -666,7 +666,7 @@ function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
         <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
       </div>
       <div className="text-right shrink-0">
-        <div className={`font-semibold ${e.type === "in" ? "text-emerald-600" : "text-rose-600"}`}>
+        <div className={`font-semibold ${e.type === "in" ? "text-emerald-700" : "text-rose-700"}`}>
           {e.type === "in" ? "+" : "-"}{cur}{e.amount.toLocaleString()}
         </div>
         <div className="text-[11px] text-slate-400 mt-0.5">Bal {cur}{balanceText}</div>
@@ -737,8 +737,8 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
       <TopHeader title="Entry Details" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className={`rounded-xl p-4 text-center ${isIn ? "bg-emerald-50" : "bg-rose-50"}`}>
-          <div className={`text-xs font-medium ${isIn ? "text-emerald-700" : "text-rose-700"}`}>{isIn ? "Cash In" : "Cash Out"}</div>
-          <div className={`text-2xl font-bold ${isIn ? "text-emerald-700" : "text-rose-700"}`}>{cur}{entry.amount.toLocaleString()}</div>
+          <div className={`text-xs font-medium ${isIn ? "text-emerald-800" : "text-rose-800"}`}>{isIn ? "Cash In" : "Cash Out"}</div>
+          <div className={`text-2xl font-bold ${isIn ? "text-emerald-800" : "text-rose-800"}`}>{cur}{entry.amount.toLocaleString()}</div>
           <div className="text-xs text-slate-500 mt-1">{methodKind} · {entry.paymentMode}</div>
         </div>
 
@@ -861,18 +861,18 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
-        right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-600"><Trash2 size={18} /></button> : null} />
+        right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isEdit && (
           <div>
             <div className="text-xs text-slate-500 mb-1.5">Entry Type</div>
             <div className="flex gap-2">
               <button onClick={() => setForm({ ...form, type: "in" })}
-                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${isIn ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-300 text-slate-500"}`}>
+                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${isIn ? "bg-emerald-700 text-white border-emerald-700" : "border-slate-300 text-slate-500"}`}>
                 <Plus size={16} /> Cash In
               </button>
               <button onClick={() => setForm({ ...form, type: "out" })}
-                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${!isIn ? "bg-rose-600 text-white border-rose-600" : "border-slate-300 text-slate-500"}`}>
+                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-semibold border ${!isIn ? "bg-rose-700 text-white border-rose-700" : "border-slate-300 text-slate-500"}`}>
                 <Minus size={16} /> Cash Out
               </button>
             </div>
@@ -956,7 +956,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
         {!isEdit && (
           <button onClick={() => save(true)} className="flex-1 border border-teal-700 text-teal-700 py-2.5 rounded-xl font-semibold">Save & Add New</button>
         )}
-        <button onClick={() => save(false)} className={`flex-1 text-white py-2.5 rounded-xl font-semibold ${isIn ? "bg-emerald-600" : "bg-rose-600"}`}>Save</button>
+        <button onClick={() => save(false)} className={`flex-1 text-white py-2.5 rounded-xl font-semibold ${isIn ? "bg-emerald-700" : "bg-rose-700"}`}>Save</button>
       </div>
     </div>
   );
@@ -1054,7 +1054,7 @@ function BookSettingsScreen({ ctx, bookId }) {
         )}
 
         {canManage && (
-          <button onClick={deleteBook} className="w-full flex items-center justify-center gap-2 text-rose-600 border border-rose-200 rounded-xl py-3 font-medium">
+          <button onClick={deleteBook} className="w-full flex items-center justify-center gap-2 text-rose-700 border border-rose-200 rounded-xl py-3 font-medium">
             <Trash2 size={16} /> Delete Book
           </button>
         )}
@@ -1135,7 +1135,7 @@ function AddMemberScreen({ ctx, bookId }) {
               <select value={m.role} onChange={(e) => changeRole(m.id, e.target.value)} className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white">
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
-              <button onClick={() => removeMember(m.id)} className="text-rose-500 p-1"><Trash2 size={14} /></button>
+              <button onClick={() => removeMember(m.id)} className="text-rose-600 p-1"><Trash2 size={14} /></button>
             </div>
           ))}
         </div>
@@ -1340,12 +1340,12 @@ function ReportViewScreen({ ctx, bookId, filters }) {
         </div>
         <div className="flex gap-3">
           <div className="flex-1 bg-emerald-50 rounded-xl p-3 text-center">
-            <div className="text-xs text-emerald-700">Total In</div>
-            <div className="font-bold text-emerald-700">{cur}{totalIn.toLocaleString()}</div>
+            <div className="text-xs text-emerald-800">Total In</div>
+            <div className="font-bold text-emerald-800">{cur}{totalIn.toLocaleString()}</div>
           </div>
           <div className="flex-1 bg-rose-50 rounded-xl p-3 text-center">
-            <div className="text-xs text-rose-700">Total Out</div>
-            <div className="font-bold text-rose-700">{cur}{totalOut.toLocaleString()}</div>
+            <div className="text-xs text-rose-800">Total Out</div>
+            <div className="font-bold text-rose-800">{cur}{totalOut.toLocaleString()}</div>
           </div>
         </div>
 
@@ -1361,7 +1361,7 @@ function ReportViewScreen({ ctx, bookId, filters }) {
                   <div className="font-medium text-slate-800">{e.contact || e.category || "Entry"}</div>
                   <div className="text-xs text-slate-400">{fmtDate(e.date)} · {e.category || "-"} · {e.paymentMode}</div>
                 </div>
-                <div className={e.type === "in" ? "text-emerald-600 font-semibold" : "text-rose-600 font-semibold"}>
+                <div className={e.type === "in" ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>
                   {e.type === "in" ? "+" : "-"}{cur}{e.amount.toLocaleString()}
                 </div>
               </div>
@@ -1373,8 +1373,8 @@ function ReportViewScreen({ ctx, bookId, filters }) {
               <div key={k} className="flex items-center justify-between px-3 py-2.5 text-sm">
                 <div className="font-medium text-slate-800">{k}</div>
                 <div className="text-right">
-                  <div className="text-emerald-600">+{cur}{(v.in || 0).toLocaleString()}</div>
-                  <div className="text-rose-600">-{cur}{(v.out || 0).toLocaleString()}</div>
+                  <div className="text-emerald-700">+{cur}{(v.in || 0).toLocaleString()}</div>
+                  <div className="text-rose-700">-{cur}{(v.out || 0).toLocaleString()}</div>
                 </div>
               </div>
             ))}
@@ -1385,8 +1385,8 @@ function ReportViewScreen({ ctx, bookId, filters }) {
               <div key={k} className="flex items-center justify-between px-3 py-2.5 text-sm">
                 <div className="font-medium text-slate-800">{k}</div>
                 <div className="text-right">
-                  <div className="text-emerald-600">+{cur}{(v.in || 0).toLocaleString()}</div>
-                  <div className="text-rose-600">-{cur}{(v.out || 0).toLocaleString()}</div>
+                  <div className="text-emerald-700">+{cur}{(v.in || 0).toLocaleString()}</div>
+                  <div className="text-rose-700">-{cur}{(v.out || 0).toLocaleString()}</div>
                 </div>
               </div>
             ))}
@@ -1444,8 +1444,8 @@ function ChartsScreen({ ctx, bookId }) {
         </div>
 
         <div className="bg-rose-50 rounded-xl p-3 text-center">
-          <div className="text-xs text-rose-700">Total Expenses</div>
-          <div className="font-bold text-rose-700 text-lg">{cur}{totalExpense.toLocaleString()}</div>
+          <div className="text-xs text-rose-800">Total Expenses</div>
+          <div className="font-bold text-rose-800 text-lg">{cur}{totalExpense.toLocaleString()}</div>
         </div>
 
         {entries === null ? (
@@ -1634,7 +1634,7 @@ function BusinessSettingsScreen({ ctx }) {
           </div>
         )}
 
-        <button onClick={deleteBusiness} className="w-full flex items-center justify-center gap-2 text-rose-600 border border-rose-200 rounded-xl py-3 font-medium">
+        <button onClick={deleteBusiness} className="w-full flex items-center justify-center gap-2 text-rose-700 border border-rose-200 rounded-xl py-3 font-medium">
           <Trash2 size={16} /> Delete Business
         </button>
       </div>

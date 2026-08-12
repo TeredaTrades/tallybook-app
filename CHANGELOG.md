@@ -42,3 +42,13 @@ record without needing to scroll back through chat history.
   Operator / Viewer) with a "view as" simulator, filtered reports (CSV +
   print-to-PDF), book activity log, move-book-between-businesses requests,
   app settings (categories, payment modes, currency)
+
+## 2026-08-12 (cont.) — New app icon, darker in/out colors
+- Replaced the placeholder Capacitor default icon with a custom logo — a
+  white tally-mark glyph (four strokes + the crossing fifth) on the app's
+  teal brand color, regenerated at every Android density for the adaptive
+  icon (foreground + background), legacy square icon, and round icon
+- Darkened the green (Cash In) and red (Cash Out) accent colors one shade
+  throughout the app — icons, amounts, totals, and buttons — for better
+  contrast; light background tints (the pale green/red chips) were left
+  as-is
