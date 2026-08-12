@@ -41,3 +41,9 @@ that once and scoping all three together rather than separately.
 _(move items here once handled, with the date)_
 
 - Loan amortization calculator (2026-08-12)
+- Louder/more useful reminders — dedicated alarm-style channel + in-app
+  popup on tap or while open, instead of just a bar notification (2026-08-12)
+- Home landing page with Expenses Manager / Loan Calculator shortcuts,
+  marketplace link, forex rates, financial news links (2026-08-12)
+- Fixed floating button covering the Save button when naming/renaming a
+  book (2026-08-12)

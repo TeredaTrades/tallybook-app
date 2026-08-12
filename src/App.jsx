@@ -5,7 +5,8 @@ import {
   Share2, HelpCircle, BookMarked, Wallet, TrendingUp, TrendingDown, Calendar,
   Clock, Trash2, Download, Printer, Eye, EyeOff, ShieldCheck, Check, ArrowRightLeft,
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
-  CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator
+  CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
+  Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -151,6 +152,9 @@ async function storeSet(key, value) {
 // ---------- reminders (things to buy / to pay for) ----------
 // Native local notifications on Android via @capacitor/local-notifications.
 // In the browser preview (npm run dev) these calls are no-ops so the app keeps working.
+const REMINDER_CHANNEL_ID = "tallybook-reminders";
+const REMINDER_SOUND_FILE = "reminder_alarm.wav"; // android/app/src/main/res/raw/reminder_alarm.wav
+
 function notifIdFor(itemId) {
   let h = 0;
   for (let i = 0; i < itemId.length; i++) h = (h * 31 + itemId.charCodeAt(i)) >>> 0;
@@ -164,6 +168,26 @@ async function requestNotifPermissionNative() {
   if (!Capacitor.isNativePlatform()) return "granted";
   try { return (await LocalNotifications.requestPermissions()).display; } catch { return "denied"; }
 }
+// Creates (or updates) a dedicated high-importance channel so reminders play
+// a distinct alarm-like sound + strong vibration and pop up as a heads-up
+// banner, instead of a silent line in the notification shade. Android only
+// lets a channel's sound/importance be set the first time it's created, so
+// this mainly takes effect on a fresh install.
+async function ensureReminderChannel() {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await LocalNotifications.createChannel({
+      id: REMINDER_CHANNEL_ID,
+      name: "Payment & item reminders",
+      description: "Alerts for things you scheduled a reminder for on your to-buy/to-pay list",
+      importance: 5, // max — heads-up banner + sound even if the phone is locked
+      visibility: 1,
+      sound: REMINDER_SOUND_FILE,
+      vibration: true,
+      lights: true,
+    });
+  } catch (e) { console.error("create reminder channel failed", e); }
+}
 async function schedulePlannedReminder(item) {
   if (!Capacitor.isNativePlatform() || !item.reminderAt) return;
   const at = new Date(item.reminderAt);
@@ -173,8 +197,11 @@ async function schedulePlannedReminder(item) {
       notifications: [{
         id: notifIdFor(item.id),
         title: `Reminder: ${item.desc}`,
-        body: `Anticipated ${item.amount ? Number(item.amount).toLocaleString() : "0"} · ${item.category}`,
-        schedule: { at },
+        body: `Anticipated ${item.amount ? Number(item.amount).toLocaleString() : "0"} · ${item.category} — tap for details`,
+        schedule: { at, allowWhileIdle: true },
+        channelId: REMINDER_CHANNEL_ID,
+        sound: REMINDER_SOUND_FILE,
+        extra: { plannedItemId: item.id },
       }],
     });
   } catch (e) { console.error("schedule reminder failed", e); }
@@ -227,6 +254,7 @@ function EmptyState({ icon: Icon, title, hint }) {
 
 function BottomNav({ tab, setTab }) {
   const items = [
+    { id: "home", label: "Home", icon: Home },
     { id: "books", label: "Cashbooks", icon: BookMarked },
     { id: "help", label: "Help", icon: HelpCircle },
     { id: "settings", label: "Settings", icon: SettingsIcon },
@@ -251,11 +279,11 @@ function BottomNav({ tab, setTab }) {
 // A floating shortcut that's available on every screen — it never blocks the
 // app underneath (it's a slide-over, not a full-screen modal) and isn't
 // buried inside Settings.
-function PlannedFAB({ pendingCount, onClick }) {
+function PlannedFAB({ pendingCount, onClick, hidden }) {
   return (
     <button
       onClick={onClick}
-      className="fixed right-4 bottom-24 z-30 w-14 h-14 rounded-full bg-teal-700 text-white shadow-lg shadow-teal-900/20 flex items-center justify-center active:scale-95 transition-transform"
+      className={`fixed right-4 bottom-24 z-30 w-14 h-14 rounded-full bg-teal-700 text-white shadow-lg shadow-teal-900/20 flex items-center justify-center active:scale-95 transition-opacity duration-150 ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}
       title="Things to buy / pay for"
     >
       <ClipboardList size={20} />
@@ -384,6 +412,60 @@ function PlannedSidebar({ ctx, open, onClose }) {
   );
 }
 
+// ---------- Reminder alarm popup ----------
+// Shown when a scheduled reminder fires while the app is open, or when the
+// user taps the notification (from the tray or a cold start). Plays the
+// same alarm tone in-app (looped a few times) since a system notification
+// only plays its sound once.
+function ReminderAlarmModal({ alarm, onDismiss, onMarkDone, onSnooze }) {
+  const audioRef = useRef(null);
+  const stopTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!alarm) return;
+    const audio = new Audio("/reminder-alarm.wav");
+    audio.loop = true;
+    audioRef.current = audio;
+    audio.play().catch(() => {}); // browser may block autoplay without a prior gesture — fine, silent fallback
+    stopTimerRef.current = setTimeout(() => { audio.pause(); }, 15000); // don't blare forever if left unattended
+    return () => {
+      clearTimeout(stopTimerRef.current);
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, [alarm]);
+
+  if (!alarm) return null;
+
+  const stopSound = () => { audioRef.current?.pause(); clearTimeout(stopTimerRef.current); };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 text-center">
+        <div className="w-14 h-14 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3 animate-pulse">
+          <BellRing size={26} />
+        </div>
+        <div className="text-xs font-medium text-rose-600 uppercase tracking-wide mb-1">Reminder</div>
+        <div className="text-lg font-bold text-slate-900 mb-1">{alarm.desc}</div>
+        <div className="text-sm text-slate-500 mb-5">
+          {alarm.amount ? `${alarm.currency}${Number(alarm.amount).toLocaleString()} · ` : ""}{alarm.category}
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <button onClick={() => { stopSound(); onSnooze(); }} className="border border-slate-300 text-slate-700 rounded-xl py-2.5 text-sm font-medium">
+            Snooze 10 min
+          </button>
+          <button onClick={() => { stopSound(); onMarkDone(); }} className="bg-emerald-700 text-white rounded-xl py-2.5 text-sm font-medium">
+            Mark done
+          </button>
+        </div>
+        <button onClick={() => { stopSound(); onDismiss(); }} className="w-full flex items-center justify-center gap-1.5 text-slate-500 text-sm py-2">
+          <VolumeX size={14} /> Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 export default function TallyBookApp() {
   const [loading, setLoading] = useState(true);
@@ -391,13 +473,15 @@ export default function TallyBookApp() {
   const [businesses, setBusinesses] = useState([]);
   const [session, setSession] = useState({ activeBusinessId: null, viewingAs: null });
   const [appSettings, setAppSettings] = useState({ categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
-  const [tab, setTab] = useState("books");
-  const [stack, setStack] = useState([{ screen: "books" }]);
+  const [tab, setTab] = useState("home");
+  const [stack, setStack] = useState([{ screen: "home" }]);
   const [entriesCache, setEntriesCache] = useState({}); // bookId -> entries
   const [activityCache, setActivityCache] = useState({}); // bookId -> activity
   const [plannedItems, setPlannedItems] = useState([]); // things to buy / pay for (global, not tied to a book)
   const [plannedSidebarOpen, setPlannedSidebarOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState("unknown");
+  const [inputFocused, setInputFocused] = useState(false); // hides the floating list button while typing so it can't sit on top of a Save button
+  const [activeAlarm, setActiveAlarm] = useState(null); // reminder popup payload, shown on notification receipt/tap
 
   const top = stack[stack.length - 1];
   const push = (screen, extra = {}) => setStack((s) => [...s, { screen, ...extra }]);
@@ -420,7 +504,42 @@ export default function TallyBookApp() {
       setSession({ ...sess, activeBusinessId: activeId });
       setLoading(false);
       checkNotifPermission().then(setNotifPermission);
+      ensureReminderChannel();
     })();
+  }, []);
+
+  // ---- reminder notifications: pop up an alarm card whether the notification
+  // fires while the app is open, or is tapped from the tray / a cold start ----
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const showAlarmFor = async (plannedItemId) => {
+      if (!plannedItemId) return;
+      // Re-read from storage rather than trusting React state — a tap from a
+      // fully-closed app fires this before the rest of the app has loaded.
+      const planned = await storeGet("planned-items", []);
+      const settings = await storeGet("app-settings", { categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
+      const item = planned.find((p) => p.id === plannedItemId);
+      if (!item) return;
+      setActiveAlarm({ ...item, currency: settings.currency });
+    };
+    const receivedHandle = LocalNotifications.addListener("localNotificationReceived", (n) => {
+      showAlarmFor(n?.extra?.plannedItemId);
+    });
+    const tappedHandle = LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
+      showAlarmFor(e?.notification?.extra?.plannedItemId);
+    });
+    return () => { receivedHandle.then((h) => h.remove()); tappedHandle.then((h) => h.remove()); };
+  }, []);
+
+  // ---- hide the floating "to buy/pay" button while a text field is focused,
+  // so it can never sit on top of a Save/Add button pushed up by the keyboard ----
+  useEffect(() => {
+    const isFormEl = (el) => el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
+    const onFocusIn = (e) => { if (isFormEl(e.target)) setInputFocused(true); };
+    const onFocusOut = (e) => { if (isFormEl(e.target)) setInputFocused(false); };
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => { document.removeEventListener("focusin", onFocusIn); document.removeEventListener("focusout", onFocusOut); };
   }, []);
 
   const persistBusinesses = useCallback(async (next) => {
@@ -444,6 +563,25 @@ export default function TallyBookApp() {
     setNotifPermission(p);
     return p;
   }, []);
+
+  const dismissAlarm = useCallback(() => setActiveAlarm(null), []);
+  const markAlarmDone = useCallback(async () => {
+    if (!activeAlarm) return;
+    const planned = await storeGet("planned-items", []);
+    const next = planned.map((p) => p.id === activeAlarm.id ? { ...p, done: true } : p);
+    await persistPlanned(next);
+    setActiveAlarm(null);
+  }, [activeAlarm, persistPlanned]);
+  const snoozeAlarm = useCallback(async () => {
+    if (!activeAlarm) return;
+    const planned = await storeGet("planned-items", []);
+    const at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const item = planned.find((p) => p.id === activeAlarm.id);
+    const next = planned.map((p) => p.id === activeAlarm.id ? { ...p, reminderAt: at } : p);
+    await persistPlanned(next);
+    if (item) await schedulePlannedReminder({ ...item, reminderAt: at });
+    setActiveAlarm(null);
+  }, [activeAlarm, persistPlanned]);
 
   const activeBusiness = businesses.find((b) => b.id === session.activeBusinessId) || null;
 
@@ -541,11 +679,12 @@ export default function TallyBookApp() {
       <div className="flex-1 overflow-y-auto flex flex-col">
         <Router ctx={ctx} tab={tab} setTab={setTab} />
       </div>
-      {stack.length === 1 && (top.screen === "books" || top.screen === "help" || top.screen === "settings") && (
+      {stack.length === 1 && (top.screen === "home" || top.screen === "books" || top.screen === "help" || top.screen === "settings") && (
         <BottomNav tab={tab} setTab={(t) => { setTab(t); resetTo(t); }} />
       )}
-      <PlannedFAB pendingCount={pendingPlannedCount} onClick={() => setPlannedSidebarOpen(true)} />
+      <PlannedFAB pendingCount={pendingPlannedCount} onClick={() => setPlannedSidebarOpen(true)} hidden={inputFocused} />
       <PlannedSidebar ctx={ctx} open={plannedSidebarOpen} onClose={() => setPlannedSidebarOpen(false)} />
+      <ReminderAlarmModal alarm={activeAlarm} onDismiss={dismissAlarm} onMarkDone={markAlarmDone} onSnooze={snoozeAlarm} />
     </div>
   );
 }
@@ -596,10 +735,122 @@ function Onboarding({ onDone }) {
   );
 }
 
+// ---------- Home (landing screen) ----------
+const MAJOR_CURRENCY_CODES = ["EUR", "GBP", "JPY", "ETB", "INR", "CNY"];
+// Frankfurter is a free, keyless exchange-rate API (European Central Bank data) — no signup needed.
+const FOREX_API_URL = `https://api.frankfurter.app/latest?from=USD&to=${MAJOR_CURRENCY_CODES.join(",")}`;
+const FINANCIAL_NEWS_LINKS = [
+  { title: "Reuters — Business & Finance", url: "https://www.reuters.com/business/" },
+  { title: "Bloomberg — Markets", url: "https://www.bloomberg.com/markets" },
+  { title: "Yahoo Finance", url: "https://finance.yahoo.com/" },
+  { title: "CNBC — Markets", url: "https://www.cnbc.com/markets/" },
+];
+// Buy/sell marketplace shortcut — swap this URL for whichever marketplace you prefer.
+const MARKETPLACE_URL = "https://jiji.com.et";
+
+function HomeScreen({ ctx }) {
+  const { push } = ctx;
+  const [rates, setRates] = useState(null);
+  const [ratesLoading, setRatesLoading] = useState(true);
+  const [ratesError, setRatesError] = useState(false);
+
+  const loadRates = useCallback(async () => {
+    setRatesLoading(true);
+    setRatesError(false);
+    try {
+      const res = await fetch(FOREX_API_URL);
+      if (!res.ok) throw new Error("bad response");
+      const data = await res.json();
+      setRates(data.rates || null);
+    } catch {
+      setRatesError(true);
+    } finally {
+      setRatesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRates(); }, [loadRates]);
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="px-4 py-4 bg-white border-b border-slate-200">
+        <div className="text-lg font-bold text-slate-900">Welcome back</div>
+        <div className="text-xs text-slate-500">Your tools, market rates, and news — all in one place</div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => push("books")}
+            className="bg-teal-700 text-white rounded-xl p-4 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <Wallet size={22} />
+            <div className="font-semibold text-sm leading-tight">Expenses Manager</div>
+            <div className="text-[11px] text-teal-100">Books, entries & reports</div>
+          </button>
+          <button onClick={() => push("loanCalculator")}
+            className="bg-slate-800 text-white rounded-xl p-4 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <Calculator size={22} />
+            <div className="font-semibold text-sm leading-tight">Loan Calculator</div>
+            <div className="text-[11px] text-slate-300">Payments & amortization</div>
+          </button>
+        </div>
+
+        <a href={MARKETPLACE_URL} target="_blank" rel="noopener noreferrer"
+          className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-4">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700 shrink-0"><ShoppingBag size={18} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-slate-900 text-sm">Buy & Sell Marketplace</div>
+            <div className="text-xs text-slate-500">Browse listings or sell something online</div>
+          </div>
+          <ExternalLink size={15} className="text-slate-300 shrink-0" />
+        </a>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-slate-800 font-medium text-sm">
+              <Landmark size={16} className="text-teal-700" /> Exchange Rates <span className="text-xs text-slate-400 font-normal">(base USD)</span>
+            </div>
+            <button onClick={loadRates} className="text-slate-400 p-1" title="Refresh">
+              <RefreshCw size={14} className={ratesLoading ? "animate-spin" : ""} />
+            </button>
+          </div>
+          {ratesError ? (
+            <div className="text-xs text-slate-400">Rates unavailable right now — check your connection and try again.</div>
+          ) : ratesLoading && !rates ? (
+            <div className="text-xs text-slate-400">Loading current rates…</div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {MAJOR_CURRENCY_CODES.map((code) => (
+                <div key={code} className="bg-slate-50 rounded-lg p-2 text-center">
+                  <div className="text-[11px] text-slate-500">{code}</div>
+                  <div className="text-sm font-semibold text-slate-800">{rates && rates[code] != null ? rates[code].toFixed(2) : "—"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-medium text-slate-400 uppercase">
+            <Newspaper size={13} /> Financial News
+          </div>
+          {FINANCIAL_NEWS_LINKS.map((n) => (
+            <a key={n.url} href={n.url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 text-left">
+              <div className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{n.title}</div>
+              <ExternalLink size={14} className="text-slate-300 shrink-0" />
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Router ----------
 function Router({ ctx, tab, setTab }) {
   const { top } = ctx;
   switch (top.screen) {
+    case "home": return <HomeScreen ctx={ctx} />;
     case "books": return <BooksScreen ctx={ctx} />;
     case "help": return <HelpScreen ctx={ctx} />;
     case "settings": return <SettingsScreen ctx={ctx} />;
@@ -674,7 +925,7 @@ function BooksScreen({ ctx }) {
         <button onClick={() => push("businessTeam")} className="p-2 text-teal-700"><UserPlus size={20} /></button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-slate-500">Your Books</span>
           <Search size={18} className="text-slate-400" />
@@ -1343,7 +1594,7 @@ function BookSettingsScreen({ ctx, bookId }) {
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title="Book Settings" onBack={pop} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="text-xs text-slate-500 mb-1">Cashbook Name</div>
           {renaming ? (
@@ -1898,7 +2149,6 @@ function SettingsScreen({ ctx }) {
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />
-          <Item icon={Calculator} title="Loan Calculator" sub="Amortization schedule for any loan" onClick={() => push("loanCalculator")} />
           <Item icon={Bell} title="Reminders" sub="Get notified about things to buy or pay for" onClick={() => push("reminders")} />
           <Item icon={Eye} title="Your Profile" sub="Name, mobile number, email" onClick={() => push("profile")} />
           <Item icon={Info} title="About በጅሮንድ" sub="Privacy policy, T&C, About us" onClick={() => push("about")} />

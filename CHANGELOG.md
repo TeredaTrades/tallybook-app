@@ -3,7 +3,41 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
-## 2026-08-12 (latest) — Loan amortization calculator
+## 2026-08-12 (latest) — Home landing page, louder reminders, layout fix
+- Added a Home landing screen — now the first thing you land on when opening
+  the app (new first tab in the bottom nav). It has Expenses Manager and
+  Loan Calculator as two buttons side by side, a "Buy & Sell Marketplace"
+  link (currently pointed at Jiji, easy to swap for another site), live
+  foreign-exchange rates for major currencies (EUR, GBP, JPY, ETB, INR, CNY
+  vs. USD, via the free Frankfurter API — no signup/key needed), and a
+  quick-links list to financial news sites (Reuters, Bloomberg, Yahoo
+  Finance, CNBC). Removed the Loan Calculator entry from Settings since
+  it's now reachable from Home instead.
+- Reminders are now louder and do more than a bar notification: added a
+  dedicated high-importance Android notification channel with a custom
+  alarm-style tone and strong vibration, so reminders show as a heads-up
+  banner with sound even when the app is fully closed. Tapping the
+  notification (or the reminder firing while the app is already open) now
+  pops up an in-app alarm card with the item's description, amount, and
+  category, plus Snooze (10 min) / Mark done / Dismiss actions — instead of
+  just a silent line in the notification shade.
+- Fixed a real bug found along the way: `@capacitor/local-notifications`
+  was never actually registered in the native Android project (missing
+  from `capacitor.settings.gradle` / `capacitor.build.gradle`), so
+  reminders likely weren't firing as native notifications at all before
+  this. Running `npx cap sync android` picked this up and fixed it.
+- Fixed the floating "to buy/pay" button covering Save/Add buttons (most
+  noticeable when naming or renaming a book) — the button now hides itself
+  whenever a text field is focused, so it can't sit on top of a
+  keyboard-pushed button; also added extra bottom padding as a second
+  safety net on the Books and Book Settings screens.
+- Investigated the "plain sheet icon when unzipped" report: confirmed the
+  actual installed app icon renders correctly (the wallet/shield logo) —
+  the generic icon some people see is how certain file managers/PCs
+  display an uninstalled `.apk` file before it's opened, which isn't
+  something the app package can control.
+
+## 2026-08-12 (later still) — Loan amortization calculator
 - Added a Loan Calculator under Settings > General Settings — enter a loan
   amount, annual interest rate, and term (years or months) to get the
   monthly payment, total interest, and total amount paid
