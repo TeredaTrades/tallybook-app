@@ -52,3 +52,22 @@ record without needing to scroll back through chat history.
   throughout the app — icons, amounts, totals, and buttons — for better
   contrast; light background tints (the pale green/red chips) were left
   as-is
+
+## 2026-08-12 (cont.) — Multi-select move/copy, working CSV/PDF export
+- Added multi-select for move/copy: tap the checkmark icon in a book's
+  header (or long-press an entry, same as before) to enter selection mode;
+  tap entries to select/deselect, "Select All" toggles every currently
+  visible (filtered/searched) entry, then "Move / Copy (N)" opens the same
+  bottom-sheet, now handling any number of entries at once with a combined
+  net-amount summary
+- Fixed Download CSV and Print/Save as PDF, which weren't working in the
+  installed Android app — Android's WebView doesn't support blob-URL
+  download links or `window.print()`, which the code relied on. Exports
+  now write the file to the app's cache via @capacitor/filesystem and hand
+  it to the native Share sheet (@capacitor/share) so it can be saved to
+  Downloads/Drive or shared directly; the PDF is now a real generated PDF
+  (via jsPDF) instead of relying on print-to-PDF. Browser/dev preview still
+  uses a plain blob download as a fallback, so `npm run dev` is unaffected.
+  Registered both new plugins with `npx cap sync android` and added the
+  Android 11+ `<queries>` manifest entry the Share chooser needs to list
+  apps.

@@ -4,9 +4,14 @@ import {
   Users, FileText, Search, MoreVertical, Building2, UserPlus, Info, Smartphone,
   Share2, HelpCircle, BookMarked, Wallet, TrendingUp, TrendingDown, Calendar,
   Clock, Trash2, Download, Printer, Eye, EyeOff, ShieldCheck, Check, ArrowRightLeft,
-  Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip
+  Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
+  CheckSquare, CheckCircle2, Circle
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // ---------- constants ----------
@@ -47,6 +52,88 @@ const fmtDateTime = (iso) => {
     " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 };
 const CHART_COLORS = ["#0f766e", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed", "#db2777", "#65a30d", "#0284c7", "#ea580c"];
+
+// ---------- file export (CSV / PDF) ----------
+// Android's WebView can't do blob-URL <a download> links or window.print(), so on
+// a native build we write the file to cache and hand it to the OS share sheet
+// (the user can then save to Downloads, Drive, WhatsApp, etc). In a plain browser
+// (npm run dev / preview) we fall back to a normal blob download, which still works.
+async function saveAndShareFile({ filename, data, mimeType, base64 = false }) {
+  if (Capacitor.isNativePlatform()) {
+    const writeOpts = base64
+      ? { path: filename, data, directory: Directory.Cache }
+      : { path: filename, data, directory: Directory.Cache, encoding: Encoding.UTF8 };
+    await Filesystem.writeFile(writeOpts);
+    const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+    await Share.share({ title: filename, url: uri, dialogTitle: "Save or share" });
+  } else {
+    const blob = base64
+      ? new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type: mimeType })
+      : new Blob([data], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Builds a simple paginated PDF report and returns it as a base64 string.
+function buildReportPdfBase64({ title, subtitle, totalIn, totalOut, cur, headers, rows }) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const marginX = 40;
+  const rightEdge = 555;
+  let y = 50;
+
+  doc.setFontSize(16);
+  doc.text(String(title || "Report"), marginX, y);
+  y += 20;
+
+  if (subtitle) {
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(String(subtitle), marginX, y);
+    doc.setTextColor(0);
+    y += 22;
+  }
+
+  doc.setFontSize(11);
+  doc.setTextColor(5, 150, 105); // emerald
+  doc.text(`Total In: ${cur}${totalIn.toLocaleString()}`, marginX, y);
+  doc.setTextColor(220, 38, 38); // rose
+  doc.text(`Total Out: ${cur}${totalOut.toLocaleString()}`, marginX + 220, y);
+  doc.setTextColor(0);
+  y += 22;
+
+  const colWidth = (rightEdge - marginX) / headers.length;
+  const colX = headers.map((_, i) => marginX + colWidth * i);
+
+  doc.setFontSize(10);
+  doc.setFont(undefined, "bold");
+  headers.forEach((h, i) => doc.text(String(h), colX[i], y));
+  doc.setFont(undefined, "normal");
+  y += 6;
+  doc.setDrawColor(200);
+  doc.line(marginX, y, rightEdge, y);
+  y += 14;
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+  rows.forEach((row) => {
+    if (y > pageHeight - 40) {
+      doc.addPage();
+      y = 50;
+    }
+    row.forEach((cell, i) => doc.text(String(cell ?? ""), colX[i], y));
+    y += 16;
+  });
+
+  if (rows.length === 0) {
+    doc.setTextColor(150);
+    doc.text("No entries match these filters.", marginX, y);
+  }
+
+  return doc.output("datauristring").split(",")[1];
+}
 
 // On-device storage only — Capacitor Preferences persists to the phone's
 // local app storage. Nothing is sent over a network; the app works fully offline.
@@ -500,7 +587,9 @@ function BookScreen({ ctx, bookId }) {
   const [entries, setEntries] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
-  const [moveCopyEntry, setMoveCopyEntry] = useState(null);
+  const [moveCopyEntries, setMoveCopyEntries] = useState(null); // array of entries, or null
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => { getEntries(bookId).then(setEntries); }, [bookId]);
 
@@ -508,26 +597,50 @@ function BookScreen({ ctx, bookId }) {
 
   const otherBooks = (activeBusiness?.books || []).filter((b) => b.id !== bookId);
 
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const enterSelectMode = (firstId) => {
+    setSelectMode(true);
+    setSelectedIds(firstId ? new Set([firstId]) : new Set());
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
   const doMoveOrCopy = async (targetBookId, mode) => {
-    const entry = moveCopyEntry;
-    if (!entry) return;
+    const selected = moveCopyEntries;
+    if (!selected || selected.length === 0) return;
+    const selectedIdSet = new Set(selected.map((e) => e.id));
     const targetBook = otherBooks.find((b) => b.id === targetBookId);
     const stamp = { transferredFrom: book?.name, transferredAt: new Date().toISOString() };
     const sourceEntries = await getEntries(bookId);
     const targetEntries = await getEntries(targetBookId);
+    const count = selected.length;
+    const countLabel = count === 1 ? "an entry" : `${count} entries`;
     if (mode === "move") {
-      const nextSource = sourceEntries.filter((e) => e.id !== entry.id);
+      const nextSource = sourceEntries.filter((e) => !selectedIdSet.has(e.id));
+      const moved = sourceEntries.filter((e) => selectedIdSet.has(e.id)).map((e) => ({ ...e, ...stamp }));
       await saveEntries(bookId, nextSource);
-      await saveEntries(targetBookId, [...targetEntries, { ...entry, ...stamp }]);
-      await logActivity(bookId, `${viewer.name} moved an entry to ${targetBook?.name}`);
-      await logActivity(targetBookId, `${viewer.name} moved an entry in from ${book?.name}`);
+      await saveEntries(targetBookId, [...targetEntries, ...moved]);
+      await logActivity(bookId, `${viewer.name} moved ${countLabel} to ${targetBook?.name}`);
+      await logActivity(targetBookId, `${viewer.name} moved ${countLabel} in from ${book?.name}`);
       setEntries(nextSource);
     } else {
-      await saveEntries(targetBookId, [...targetEntries, { ...entry, ...stamp, id: uid() }]);
-      await logActivity(bookId, `${viewer.name} copied an entry to ${targetBook?.name}`);
-      await logActivity(targetBookId, `${viewer.name} copied an entry in from ${book?.name}`);
+      const copied = sourceEntries.filter((e) => selectedIdSet.has(e.id)).map((e) => ({ ...e, ...stamp, id: uid() }));
+      await saveEntries(targetBookId, [...targetEntries, ...copied]);
+      await logActivity(bookId, `${viewer.name} copied ${countLabel} to ${targetBook?.name}`);
+      await logActivity(targetBookId, `${viewer.name} copied ${countLabel} in from ${book?.name}`);
     }
-    setMoveCopyEntry(null);
+    setMoveCopyEntries(null);
+    exitSelectMode();
   };
 
   const cur = bookCurrency(book, appSettings);
@@ -559,16 +672,35 @@ function BookScreen({ ctx, bookId }) {
       <TopHeader
         title={book.name}
         subtitle="Add Member, Book Activity etc"
-        onBack={pop}
+        onBack={selectMode ? exitSelectMode : pop}
         right={
-          <div className="flex items-center gap-1">
-            <button onClick={() => push("charts", { bookId })} className="p-2 text-teal-700"><PieChartIcon size={18} /></button>
-            <button onClick={() => push("addMember", { bookId })} className="p-2 text-teal-700"><UserPlus size={18} /></button>
-            <button onClick={() => push("reports", { bookId })} className="p-2 text-teal-700"><FileText size={18} /></button>
-            <button onClick={() => push("bookSettings", { bookId })} className="p-2 text-slate-500"><MoreVertical size={18} /></button>
-          </div>
+          selectMode ? (
+            <button onClick={exitSelectMode} className="text-sm font-medium text-teal-700 px-2">Cancel</button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button onClick={() => enterSelectMode()} className="p-2 text-teal-700"><CheckSquare size={18} /></button>
+              <button onClick={() => push("charts", { bookId })} className="p-2 text-teal-700"><PieChartIcon size={18} /></button>
+              <button onClick={() => push("addMember", { bookId })} className="p-2 text-teal-700"><UserPlus size={18} /></button>
+              <button onClick={() => push("reports", { bookId })} className="p-2 text-teal-700"><FileText size={18} /></button>
+              <button onClick={() => push("bookSettings", { bookId })} className="p-2 text-slate-500"><MoreVertical size={18} /></button>
+            </div>
+          )
         }
       />
+
+      {selectMode && (
+        <div className="bg-teal-50 border-b border-teal-100 px-4 py-2.5 flex items-center justify-between">
+          <button onClick={() => {
+            const allSelected = visible.length > 0 && visible.every((e) => selectedIds.has(e.id));
+            setSelectedIds(allSelected ? new Set() : new Set(visible.map((e) => e.id)));
+          }} className="flex items-center gap-2 text-sm font-medium text-teal-700">
+            {visible.length > 0 && visible.every((e) => selectedIds.has(e.id))
+              ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+            Select All
+          </button>
+          <span className="text-sm text-slate-600">{selectedIds.size} selected</span>
+        </div>
+      )}
 
       <div className="bg-white border-b border-slate-200 px-4 py-3 space-y-2">
         <div className="relative">
@@ -609,14 +741,29 @@ function BookScreen({ ctx, bookId }) {
           <div className="divide-y divide-slate-100">
             {visible.map((e) => (
               <EntryRow key={e.id} e={e} cur={cur} balanceText={balanceAfter[e.id].toLocaleString()}
-                onTap={() => push("entryDetail", { bookId, entryId: e.id })}
-                onLongPress={() => setMoveCopyEntry(e)} />
+                selectMode={selectMode}
+                selected={selectedIds.has(e.id)}
+                onTap={() => selectMode ? toggleSelect(e.id) : push("entryDetail", { bookId, entryId: e.id })}
+                onLongPress={() => selectMode ? toggleSelect(e.id) : enterSelectMode(e.id)} />
             ))}
           </div>
         )}
       </div>
 
-      {canAddEntries && (
+      {selectMode ? (
+        <div className="p-3 border-t border-slate-200 bg-white flex gap-2">
+          <button onClick={exitSelectMode}
+            className="px-4 py-2.5 rounded-xl font-semibold border border-slate-300 text-slate-600">
+            Cancel
+          </button>
+          <button
+            disabled={selectedIds.size === 0}
+            onClick={() => setMoveCopyEntries((entries || []).filter((e) => selectedIds.has(e.id)))}
+            className="flex-1 flex items-center justify-center gap-1 bg-teal-700 text-white py-2.5 rounded-xl font-semibold disabled:opacity-40">
+            <ArrowRightLeft size={18} /> Move / Copy {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+          </button>
+        </div>
+      ) : canAddEntries && (
         <div className="p-3 border-t border-slate-200 bg-white flex gap-2">
           <button onClick={() => push("addEntry", { bookId, type: "in" })}
             className="flex-1 flex items-center justify-center gap-1 bg-emerald-700 text-white py-2.5 rounded-xl font-semibold">
@@ -629,15 +776,15 @@ function BookScreen({ ctx, bookId }) {
         </div>
       )}
 
-      {moveCopyEntry && (
-        <MoveCopyModal entry={moveCopyEntry} otherBooks={otherBooks} cur={cur}
-          onClose={() => setMoveCopyEntry(null)} onAction={doMoveOrCopy} />
+      {moveCopyEntries && (
+        <MoveCopyModal entries={moveCopyEntries} otherBooks={otherBooks} cur={cur}
+          onClose={() => setMoveCopyEntries(null)} onAction={doMoveOrCopy} />
       )}
     </div>
   );
 }
 
-function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
+function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPress }) {
   const timerRef = useRef(null);
   const longPressed = useRef(false);
 
@@ -654,7 +801,12 @@ function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
       onTouchStart={start} onTouchEnd={cancel} onTouchMove={cancel}
       onContextMenu={(ev) => { ev.preventDefault(); onLongPress(); }}
       onClick={handleClick}
-      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 select-none">
+      className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 select-none ${selected ? "bg-teal-50" : ""}`}>
+      {selectMode && (
+        <div className="shrink-0 text-teal-700">
+          {selected ? <CheckCircle2 size={20} /> : <Circle size={20} className="text-slate-300" />}
+        </div>
+      )}
       <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${e.type === "in" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
         {e.type === "in" ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
       </div>
@@ -675,17 +827,21 @@ function EntryRow({ e, cur, balanceText, onTap, onLongPress }) {
   );
 }
 
-function MoveCopyModal({ entry, otherBooks, cur, onClose, onAction }) {
+function MoveCopyModal({ entries, otherBooks, cur, onClose, onAction }) {
+  const single = entries.length === 1 ? entries[0] : null;
+  const totalAmount = entries.reduce((s, e) => s + (e.type === "in" ? e.amount : -e.amount), 0);
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div className="w-full max-w-md bg-white rounded-t-2xl max-h-[75vh] flex flex-col" onClick={(ev) => ev.stopPropagation()}>
         <div className="p-4 border-b border-slate-100">
           <div className="flex items-center justify-between">
-            <div className="font-semibold text-slate-900">Move or Copy Entry</div>
+            <div className="font-semibold text-slate-900">Move or Copy {single ? "Entry" : `${entries.length} Entries`}</div>
             <button onClick={onClose} className="p-1 text-slate-400"><X size={18} /></button>
           </div>
           <div className="text-sm text-slate-500 mt-1">
-            {entry.type === "in" ? "+" : "-"}{cur}{entry.amount.toLocaleString()} · {entry.contact || entry.category || (entry.type === "in" ? "Cash In" : "Cash Out")}
+            {single
+              ? <>{single.type === "in" ? "+" : "-"}{cur}{single.amount.toLocaleString()} · {single.contact || single.category || (single.type === "in" ? "Cash In" : "Cash Out")}</>
+              : <>{entries.length} entries selected · net {totalAmount >= 0 ? "+" : "-"}{cur}{Math.abs(totalAmount).toLocaleString()}</>}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -1304,7 +1460,29 @@ function ReportViewScreen({ ctx, bookId, filters }) {
     return map;
   }, [filtered]);
 
-  const downloadCsv = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const reportSubtitle = `${filters.duration} · ${filters.entryType}${filters.member && filters.member !== "All" ? ` · ${filters.member}` : ""}`;
+
+  const reportTable = () => {
+    if (filters.reportType === "all") {
+      return {
+        headers: ["Date", "Type", "Amount", "Contact/Category"],
+        rows: filtered.map(e => [fmtDate(e.date), e.type === "in" ? "Cash In" : "Cash Out", `${cur}${e.amount.toLocaleString()}`, e.contact || e.category || "-"]),
+      };
+    } else if (filters.reportType === "category") {
+      return {
+        headers: ["Category", "Total In", "Total Out"],
+        rows: Object.entries(categorySummary).map(([k, v]) => [k, `${cur}${(v.in || 0).toLocaleString()}`, `${cur}${(v.out || 0).toLocaleString()}`]),
+      };
+    }
+    return {
+      headers: ["Payment Mode", "Total In", "Total Out"],
+      rows: Object.entries(paymentSummary).map(([k, v]) => [k, `${cur}${(v.in || 0).toLocaleString()}`, `${cur}${(v.out || 0).toLocaleString()}`]),
+    };
+  };
+
+  const downloadCsv = async () => {
     let rows = [];
     if (filters.reportType === "all") {
       rows.push(["Date", "Time", "Type", "Amount", "Contact", "Category", "Payment Mode", "Remark", "Added By"]);
@@ -1317,22 +1495,39 @@ function ReportViewScreen({ ctx, bookId, filters }) {
       Object.entries(paymentSummary).forEach(([k, v]) => rows.push([k, v.in || 0, v.out || 0]));
     }
     const csv = rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${filters.bookName || "report"}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setExporting(true);
+    try {
+      await saveAndShareFile({ filename: `${filters.bookName || "report"}.csv`, data: csv, mimeType: "text/csv", base64: false });
+    } catch (err) {
+      console.error("CSV export failed", err);
+      alert("Couldn't export the CSV. Please try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
-  if (filters.mode === "excel" && entries !== null) {
-    // trigger once automatically below via button; keep as manual to be safe on repeated renders
-  }
+  const downloadPdf = async () => {
+    const { headers, rows } = reportTable();
+    setExporting(true);
+    try {
+      const base64 = buildReportPdfBase64({
+        title: filters.bookName || "Report",
+        subtitle: reportSubtitle,
+        totalIn, totalOut, cur, headers, rows,
+      });
+      await saveAndShareFile({ filename: `${filters.bookName || "report"}.pdf`, data: base64, mimeType: "application/pdf", base64: true });
+    } catch (err) {
+      console.error("PDF export failed", err);
+      alert("Couldn't create the PDF. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title="Report" onBack={pop}
-        right={<button onClick={() => window.print()} className="p-2 text-teal-700"><Printer size={18} /></button>} />
+        right={<button onClick={downloadPdf} disabled={exporting} className="p-2 text-teal-700 disabled:opacity-40"><Printer size={18} /></button>} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4" id="report-printable">
         <div className="text-center">
           <div className="font-bold text-slate-900">{filters.bookName}</div>
@@ -1395,12 +1590,16 @@ function ReportViewScreen({ ctx, bookId, filters }) {
       </div>
       <div className="p-3 border-t border-slate-200 bg-white">
         {filters.mode === "excel" ? (
-          <button onClick={downloadCsv} className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold">
-            <Download size={16} /> Download CSV
+          <button onClick={downloadCsv} disabled={exporting}
+            className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold disabled:opacity-50">
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            {exporting ? "Preparing…" : "Download CSV"}
           </button>
         ) : (
-          <button onClick={() => window.print()} className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold">
-            <Printer size={16} /> Print / Save as PDF
+          <button onClick={downloadPdf} disabled={exporting}
+            className="w-full flex items-center justify-center gap-2 bg-teal-700 text-white py-2.5 rounded-xl font-semibold disabled:opacity-50">
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+            {exporting ? "Preparing…" : "Print / Save as PDF"}
           </button>
         )}
       </div>
