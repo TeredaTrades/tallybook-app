@@ -18,12 +18,6 @@ import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // ---------- constants ----------
-// Build-time variant switch. The "standalone-expenses" variant (built via
-// `npm run build:standalone`) ships only the Cashbooks/Expenses Manager flow
-// (Welcome/PIN, business picker, books & entries) and drops the Home hub —
-// which also means Loan Calculator, Budget, Trip Organizer, forex, and news
-// are dropped too, since Home is their only entry point.
-const IS_STANDALONE_EXPENSES = import.meta.env.VITE_APP_VARIANT === "standalone-expenses";
 const DEFAULT_CATEGORIES = ["Home", "Electronics", "Food", "Salary", "Rent", "Transport", "Utilities", "Other"];
 const DEFAULT_PAYMENT_MODES = ["Cash", "Online", "Card", "Cheque"];
 const CURRENCIES = { "$": "USD", "Br": "ETB", "₹": "INR", "€": "EUR", "£": "GBP" };
@@ -344,7 +338,7 @@ function BottomNav({ tab, setTab }) {
     { id: "books", label: "Cashbooks", icon: BookMarked },
     { id: "help", label: "Help", icon: HelpCircle },
     { id: "settings", label: "Settings", icon: SettingsIcon },
-  ].filter((it) => !IS_STANDALONE_EXPENSES || it.id !== "home"); // standalone build has no Home hub
+  ];
   return (
     <div className="border-t border-slate-200 bg-white flex">
       {items.map((it) => {
@@ -569,8 +563,8 @@ export default function TallyBookApp() {
   const [session, setSession] = useState({ activeBusinessId: null, viewingAs: null });
   const [appSettings, setAppSettings] = useState({ categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
   const [theme, setTheme] = useState("light");
-  const [tab, setTab] = useState(IS_STANDALONE_EXPENSES ? "books" : "home");
-  const [stack, setStack] = useState([{ screen: IS_STANDALONE_EXPENSES ? "books" : "home" }]);
+  const [tab, setTab] = useState("home");
+  const [stack, setStack] = useState([{ screen: "home" }]);
   const [entriesCache, setEntriesCache] = useState({}); // bookId -> entries
   const [activityCache, setActivityCache] = useState({}); // bookId -> activity
   const [plannedItems, setPlannedItems] = useState([]); // things to buy / pay for (global, not tied to a book)

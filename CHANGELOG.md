@@ -3,6 +3,21 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 8) — Clean up misplaced standalone-build scaffold
+- The previous entry below added a `VITE_APP_VARIANT`/`.env.standalone`
+  build-variant scaffold directly on `main` to produce a standalone
+  Expenses Manager build. That duplicated the branch structure that
+  already exists for this (`individual-base` and the `individual/*`
+  product branches, differentiated by `src/appConfig.js`), so it's been
+  removed from `main` — `npm run build:standalone`, `.env.standalone`,
+  `capacitor.config.standalone.json`, and the `IS_STANDALONE_EXPENSES`
+  switch in `App.jsx` are gone. `main` now only builds the full bundle
+  again, same as before that scaffold was added.
+- The actual business-picker-on-login fix (below) is unaffected and stays
+  on `main`. The same fix has also been ported onto `individual-base` and
+  merged into `individual/expenses-manager`, so the real standalone
+  Expenses Manager app (built from that branch) gets it too.
+
 ## 2026-08-13 (cont. 7) — Business picker on login, standalone Expenses Manager APK
 - Fixed Expenses Manager (Cashbooks) so that a returning user with more than
   one business now lands on the "Select Business" picker each time they log
