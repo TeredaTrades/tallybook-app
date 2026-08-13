@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------
 
 // "bundle" | "expenses-manager" | "loan-calculator" | "budget" | "trip-organizer"
-export const APP_VARIANT = "bundle";
+export const APP_VARIANT = "budget";
 
 export const IS_BUNDLE = APP_VARIANT === "bundle";
 
