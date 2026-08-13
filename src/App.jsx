@@ -7,7 +7,8 @@ import {
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
   CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
   Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX,
-  PiggyBank, Plane, MapPin, Luggage, Palette, Sun, Moon, PartyPopper
+  PiggyBank, Plane, MapPin, Luggage, Palette, Sun, Moon, PartyPopper, LayoutGrid,
+  Upload, Sparkles
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -15,6 +16,8 @@ import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import jsPDF from "jspdf";
+import { APP_VARIANT, IS_BUNDLE, PRODUCTS, BUNDLE_PRODUCT, productById } from "./appConfig";
+import { exportProductData, readExportFile, importProductData, hasExistingData, PRODUCT_DATA_SCOPES } from "./dataPortability";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // ---------- constants ----------
@@ -335,10 +338,14 @@ function AmountInput({ value, onChange, currencySymbol = "", placeholder = "0", 
 function BottomNav({ tab, setTab }) {
   const items = [
     { id: "home", label: "Home", icon: Home },
-    { id: "books", label: "Cashbooks", icon: BookMarked },
+    // Only the bundle (or the Expenses Manager standalone build) has a
+    // dedicated Cashbooks tab — other single-tool builds reach their one
+    // tool from the Home card instead.
+    (IS_BUNDLE || APP_VARIANT === "expenses-manager") && { id: "books", label: "Cashbooks", icon: BookMarked },
     { id: "help", label: "Help", icon: HelpCircle },
+    { id: "more", label: IS_BUNDLE ? "Import" : "More Apps", icon: LayoutGrid },
     { id: "settings", label: "Settings", icon: SettingsIcon },
-  ];
+  ].filter(Boolean);
   return (
     <div className="border-t border-slate-200 bg-white flex">
       {items.map((it) => {
@@ -1067,34 +1074,47 @@ function HomeScreen({ ctx }) {
             <button onClick={dismissHolidaySuggestion} className="shrink-0 text-slate-400 p-1" title="Dismiss"><X size={16} /></button>
           </div>
         )}
+        {/* Which of these show up depends on APP_VARIANT (src/appConfig.js):
+            the bundle shows all four; a single-tool branch shows only its
+            own tool. This is the only place that distinction is made on
+            Home — keeping it a filter (not separate code paths) is what
+            lets every product branch merge future Home changes cleanly. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button onClick={() => push("books")}
-            className="bg-teal-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-            <Wallet size={26} />
-            <div className="font-semibold text-base leading-tight">Expenses Manager</div>
-            <div className="text-xs text-teal-100">Books, entries & reports</div>
-          </button>
-          <button onClick={() => push("loanCalculator")}
-            className="bg-slate-800 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-            <Calculator size={26} />
-            <div className="font-semibold text-base leading-tight">Loan Calculator</div>
-            <div className="text-xs text-slate-300">Payments & amortization</div>
-          </button>
+          {(IS_BUNDLE || APP_VARIANT === "expenses-manager") && (
+            <button onClick={() => push("books")}
+              className="bg-teal-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+              <Wallet size={26} />
+              <div className="font-semibold text-base leading-tight">Expenses Manager</div>
+              <div className="text-xs text-teal-100">Books, entries & reports</div>
+            </button>
+          )}
+          {(IS_BUNDLE || APP_VARIANT === "loan-calculator") && (
+            <button onClick={() => push("loanCalculator")}
+              className="bg-slate-800 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+              <Calculator size={26} />
+              <div className="font-semibold text-base leading-tight">Loan Calculator</div>
+              <div className="text-xs text-slate-300">Payments & amortization</div>
+            </button>
+          )}
         </div>
 
-        <button onClick={() => push("budget")}
-          className="w-full bg-amber-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-          <PiggyBank size={26} />
-          <div className="font-semibold text-base leading-tight">Budget</div>
-          <div className="text-xs text-amber-100">Plan income, expenses & where the rest goes</div>
-        </button>
+        {(IS_BUNDLE || APP_VARIANT === "budget") && (
+          <button onClick={() => push("budget")}
+            className="w-full bg-amber-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <PiggyBank size={26} />
+            <div className="font-semibold text-base leading-tight">Budget</div>
+            <div className="text-xs text-amber-100">Plan income, expenses & where the rest goes</div>
+          </button>
+        )}
 
-        <button onClick={() => push("tripOrganizer")}
-          className="w-full bg-sky-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
-          <Plane size={26} />
-          <div className="font-semibold text-base leading-tight">Trip Organizer</div>
-          <div className="text-xs text-sky-100">Plan destinations, budget & packing</div>
-        </button>
+        {(IS_BUNDLE || APP_VARIANT === "trip-organizer") && (
+          <button onClick={() => push("tripOrganizer")}
+            className="w-full bg-sky-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
+            <Plane size={26} />
+            <div className="font-semibold text-base leading-tight">Trip Organizer</div>
+            <div className="text-xs text-sky-100">Plan destinations, budget & packing</div>
+          </button>
+        )}
 
         <a href={MARKETPLACE_URL} target="_blank" rel="noopener noreferrer"
           className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-4">
@@ -1178,11 +1198,148 @@ function HomeScreen({ ctx }) {
   );
 }
 
+// ---------- More Apps / data portability ----------
+// What this screen shows depends on APP_VARIANT (src/appConfig.js):
+//  - On the bundle build: an "Import data" section, for someone who used
+//    one of the standalone single-tool apps first and now wants that data
+//    inside the full bundle.
+//  - On a single-tool build: cross-promotion — the other standalone
+//    በጅሮንድ apps, plus an upsell card for the full ad-free bundle.
+// Android sandboxes each app's storage, so this is file-based (export to a
+// shared file, import that file elsewhere) rather than automatic detection.
+function ImportRow({ product, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const inputRef = useRef(null);
+  const scope = PRODUCT_DATA_SCOPES[product.id];
+  const hasScope = scope && (scope.exactKeys.length || scope.prefixes.length);
+
+  const onFile = useCallback(async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const exportBundle = await readExportFile(file);
+      if (exportBundle.product !== product.id) {
+        setMsg({ ok: false, text: `That file is a ${exportBundle.product} export, not ${product.name}.` });
+        return;
+      }
+      const already = await hasExistingData(product.id);
+      if (already && !confirm(`This will replace your existing ${product.name} data in this app. Continue?`)) {
+        return;
+      }
+      const result = await importProductData(exportBundle);
+      setMsg({ ok: true, text: `Imported ${product.name} data.` });
+      onDone && onDone(result);
+    } catch (err) {
+      setMsg({ ok: false, text: err.message || "Import failed." });
+    } finally {
+      setBusy(false);
+    }
+  }, [product, onDone]);
+
+  if (!hasScope) return null;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><Upload size={18} /></div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-slate-900 text-sm">{product.name}</div>
+          <div className="text-xs text-slate-500">{product.tagline}</div>
+        </div>
+        <button onClick={() => inputRef.current && inputRef.current.click()} disabled={busy}
+          className="shrink-0 text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-2 disabled:opacity-50">
+          {busy ? "Importing…" : "Import file"}
+        </button>
+        <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={onFile} />
+      </div>
+      {msg && <div className={`text-xs mt-2 ${msg.ok ? "text-teal-700" : "text-rose-600"}`}>{msg.text}</div>}
+    </div>
+  );
+}
+
+function ProductRow({ product, isBundleCard }) {
+  return (
+    <div className={`w-full flex items-center gap-3 border rounded-xl p-4 ${isBundleCard ? "bg-teal-700 border-teal-700" : "bg-white border-slate-200"}`}>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isBundleCard ? "bg-teal-600 text-white" : "bg-slate-50 text-slate-700"}`}>
+        {isBundleCard ? <Sparkles size={18} /> : <LayoutGrid size={18} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`font-medium text-sm ${isBundleCard ? "text-white" : "text-slate-900"}`}>{product.name}</div>
+        <div className={`text-xs ${isBundleCard ? "text-teal-100" : "text-slate-500"}`}>{product.tagline}</div>
+      </div>
+      {product.playStoreUrl ? (
+        <a href={product.playStoreUrl} target="_blank" rel="noopener noreferrer"
+          className={`shrink-0 text-xs font-medium rounded-lg px-3 py-2 ${isBundleCard ? "bg-white text-teal-700" : "bg-slate-800 text-white"}`}>
+          Get it
+        </a>
+      ) : (
+        <span className={`shrink-0 text-xs font-medium rounded-lg px-3 py-2 ${isBundleCard ? "bg-teal-800 text-teal-100" : "bg-slate-100 text-slate-400"}`}>
+          Coming soon
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MoreAppsScreen({ ctx }) {
+  const { pop } = ctx;
+  const [importedTick, setImportedTick] = useState(0);
+
+  if (IS_BUNDLE) {
+    return (
+      <div className="flex-1 flex flex-col">
+        <TopHeader title="Import data" subtitle="Bring data in from a standalone በጅሮንድ app" onBack={pop} />
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="text-xs text-slate-500 px-1">
+            If you used one of the single-tool በጅሮንድ apps before switching to the full bundle, export your data from
+            that app's Settings, then import the file here.
+          </div>
+          {PRODUCTS.map((p) => <ImportRow key={p.id} product={p} onDone={() => setImportedTick((t) => t + 1)} />)}
+        </div>
+      </div>
+    );
+  }
+
+  const self = productById(APP_VARIANT);
+  const others = PRODUCTS.filter((p) => p.id !== APP_VARIANT);
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="More Apps" subtitle="Other በጅሮንድ tools" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <ProductRow product={BUNDLE_PRODUCT} isBundleCard />
+        <div className="text-xs font-medium text-slate-400 uppercase px-1 pt-2">Also available separately</div>
+        {others.map((p) => <ProductRow key={p.id} product={p} />)}
+        {self && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 mt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><Download size={18} /></div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-900 text-sm">Export your {self.name} data</div>
+                <div className="text-xs text-slate-500">Save a file you can import into the full bundle later</div>
+              </div>
+              <button onClick={() => exportProductData(APP_VARIANT).catch((e) => alert(e.message))}
+                className="shrink-0 text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-2">
+                Export
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Router ----------
 function Router({ ctx, tab, setTab }) {
   const { top } = ctx;
   switch (top.screen) {
     case "home": return <HomeScreen ctx={ctx} />;
+    case "more": return <MoreAppsScreen ctx={ctx} />;
     case "books": return <BooksScreen ctx={ctx} />;
     case "help": return <HelpScreen ctx={ctx} />;
     case "settings": return <SettingsScreen ctx={ctx} />;

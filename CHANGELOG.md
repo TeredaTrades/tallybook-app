@@ -3,6 +3,38 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 7) — [individual-base branch] Product split scaffold
+This branch (`individual-base`) is the shared starting point for the
+single-tool, ad-supported apps (`individual/expenses-manager`,
+`individual/loan-calculator`, `individual/budget`, `individual/trip-organizer`).
+`main` stays the full paid bundle. See NOTES.md "Branch structure" for the
+overall plan.
+
+- Added `src/appConfig.js`: one `APP_VARIANT` constant ("bundle" or a
+  product id) is now the only thing that should differ between `main` and
+  each `individual/*` branch — everything else is shared code that merges
+  cleanly. Home's tool cards and the bottom nav's Cashbooks tab now read
+  this to show only the relevant tool(s).
+- Added a "More Apps" / "Import" bottom-nav tab:
+  - On the bundle build, it's an **Import data** screen — pick an export
+    file from a standalone app and merge that product's data in.
+  - On a single-tool build, it's cross-promotion: the other standalone
+    apps + an upsell card for the full bundle (Play Store links show
+    "Coming soon" until each product has its own package name/listing —
+    see NOTES.md), plus an **Export** action to save that app's data to a
+    file for later import into the bundle.
+- Added `src/dataPortability.js`: export/import is file-based (JSON, via
+  the existing Filesystem+Share pattern used for CSV/PDF), not automatic
+  detection — Android sandboxes each installed app's storage separately,
+  so two separately-installed apps can never read each other's data
+  directly even though they share this codebase. Each product's export is
+  scoped to only its own storage keys (e.g. Budget's export never touches
+  `businesses`/`entries:*`), so importing into the bundle can't clobber
+  other tools' data. Loan Calculator has nothing to export today since it
+  doesn't persist anything between sessions.
+- Ads were deliberately left out of this pass (network not decided yet —
+  see NOTES.md).
+
 ## 2026-08-13 (cont. 6) — Quick toggle, pattern themes, holiday themes
 - Added a light/dark quick-toggle button (sun/moon icon) to the Home screen
   header — one tap flips between light and dark regardless of which theme

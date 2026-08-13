@@ -37,7 +37,33 @@ that once and scoping all three together rather than separately.
 ## To remove
 -
 
+## Branch structure (product split)
+Goal: `main` is the full app, sold as a paid, no-ads bundle. Each tool is
+also available as its own free, ad-supported, individually-installable app
+for people who don't want to pay.
+
+- `main` — the full bundle (this is the paid product)
+- `individual-base` — shared scaffold for every single-tool app (branched
+  from `main`). Fixes/features that should apply to every product app go
+  here first, then merge out to each `individual/<product>` branch.
+- `individual/expenses-manager`, `individual/loan-calculator`,
+  `individual/budget`, `individual/trip-organizer` — one branch per
+  standalone app, branched from `individual-base`.
+
+The only thing that should differ between `main` and an `individual/*`
+branch is `src/appConfig.js`'s `APP_VARIANT` value — Home's tool cards, the
+bottom nav, and the More Apps/Import tab all read that one constant, so a
+product branch is otherwise the same codebase and can pull in shared fixes
+via a normal merge from `individual-base`.
+
 ## Open decisions
+- Each standalone app needs its own Android `applicationId` (package name)
+  and Play Store listing before it can actually be published separately —
+  intentionally not set up yet. Until then the "Get it" buttons on the
+  More Apps screen show "Coming soon". `playStoreUrl` for each product
+  lives in `src/appConfig.js` — fill those in once each listing exists.
+- Ad network for the free/ad-supported individual apps isn't picked yet
+  (AdMob is the likely default) — no ad code has been added.
 - Fasika (Orthodox Easter) isn't in the holiday-theme rotation yet — its
   date moves every year and needs a reliable lookup before adding it the
   same way as the other holidays.
