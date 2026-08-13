@@ -3,6 +3,18 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 15) — [individual/expenses-manager branch] Light/dark toggle on every page, "More በጅሮንድ Apps" nav label fix
+- This standalone build has no Home screen, so it previously had no way at all to
+  switch between light and dark theme — the sun/moon quick-toggle only existed on
+  the bundle's Home header. Added the same toggle button to `TopHeader` (used by
+  every screen with a top bar — Book, Entry, Reports, Settings, Loan Calculator,
+  etc.), to the Cashbooks list screen's bespoke business-switcher header, and to
+  the pre-login Welcome / Welcome back (PIN) screens, so every page in this build
+  now has a one-tap way to flip the theme, matching the bundle's behavior.
+- Fixed the bottom-nav tab label for this build's More Apps screen — it still read
+  the placeholder "More Apps" instead of the "More በጅሮንድ Apps" branding already
+  used as that screen's own header title.
+
 ## 2026-08-13 (cont. 14) — [individual/expenses-manager branch] Merged More Apps branding, "Get" buttons, trading card
 - Merged in from `individual-base`: More Apps screen title, product names, and
   "Get" buttons now carry the በጅሮንድ branding, and the "Want to learn about

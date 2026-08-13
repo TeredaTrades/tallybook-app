@@ -258,7 +258,7 @@ function Chip({ active, children, onClick, tone = "teal" }) {
   );
 }
 
-function TopHeader({ title, subtitle, onBack, right }) {
+function TopHeader({ title, subtitle, onBack, right, ctx }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white sticky top-0 z-10">
       {onBack && (
@@ -271,6 +271,13 @@ function TopHeader({ title, subtitle, onBack, right }) {
         {subtitle && <div className="text-xs text-slate-500 truncate">{subtitle}</div>}
       </div>
       {right}
+      {ctx?.persistTheme && (
+        <button onClick={() => ctx.persistTheme(ctx.theme === "dark" ? "light" : "dark")}
+          className="shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+          title={ctx.theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          {ctx.theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      )}
     </div>
   );
 }
@@ -375,7 +382,7 @@ function BottomNav({ tab, setTab }) {
     // tool from the Home card instead.
     (IS_BUNDLE || APP_VARIANT === "expenses-manager") && { id: "books", label: "Cashbooks", icon: BookMarked },
     { id: "help", label: "Help", icon: HelpCircle },
-    { id: "more", label: IS_BUNDLE ? "Import" : "More Apps", icon: LayoutGrid },
+    { id: "more", label: IS_BUNDLE ? "Import" : "More በጅሮንድ Apps", icon: LayoutGrid },
     { id: "settings", label: "Settings", icon: SettingsIcon },
   ].filter(Boolean);
   return (
@@ -804,6 +811,7 @@ export default function TallyBookApp() {
     return (
       <WelcomeScreen
         theme={theme}
+        persistTheme={persistTheme}
         onDone={async (acct) => {
           await storeSet("account", acct);
           setAccount(acct);
@@ -817,6 +825,7 @@ export default function TallyBookApp() {
     return (
       <WelcomeBackScreen
         theme={theme}
+        persistTheme={persistTheme}
         account={account}
         onUnlock={() => setUnlocked(true)}
         onResetAccount={async () => {
@@ -861,7 +870,7 @@ export default function TallyBookApp() {
 // No backend here — this is a local-only name+PIN gate stored on-device (@capacitor/preferences),
 // not real authentication. It's meant to keep the app from opening straight to someone else's data
 // if they pick up the phone, not to protect against anything more serious than that.
-function WelcomeScreen({ onDone, theme }) {
+function WelcomeScreen({ onDone, theme, persistTheme }) {
   const [mode, setMode] = useState(null); // null | "create"
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
@@ -876,7 +885,14 @@ function WelcomeScreen({ onDone, theme }) {
   };
 
   return (
-    <div data-theme={theme} className="w-full h-screen bg-white overflow-hidden flex flex-col">
+    <div data-theme={theme} className="relative w-full h-screen bg-white overflow-hidden flex flex-col">
+      {persistTheme && (
+        <button onClick={() => persistTheme(theme === "dark" ? "light" : "dark")}
+          className="absolute top-4 right-4 z-10 shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+          title={theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      )}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
           <BookMarked size={36} className="text-teal-700" />
@@ -914,7 +930,7 @@ function WelcomeScreen({ onDone, theme }) {
   );
 }
 
-function WelcomeBackScreen({ account, onUnlock, onResetAccount, theme }) {
+function WelcomeBackScreen({ account, onUnlock, onResetAccount, theme, persistTheme }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
 
@@ -930,7 +946,14 @@ function WelcomeBackScreen({ account, onUnlock, onResetAccount, theme }) {
   };
 
   return (
-    <div data-theme={theme} className="w-full h-screen bg-white overflow-hidden flex flex-col">
+    <div data-theme={theme} className="relative w-full h-screen bg-white overflow-hidden flex flex-col">
+      {persistTheme && (
+        <button onClick={() => persistTheme(theme === "dark" ? "light" : "dark")}
+          className="absolute top-4 right-4 z-10 shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+          title={theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      )}
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
           <BookMarked size={36} className="text-teal-700" />
@@ -1351,7 +1374,7 @@ function MoreAppsScreen({ ctx }) {
   if (IS_BUNDLE) {
     return (
       <div className="flex-1 flex flex-col">
-        <TopHeader title="Import data" subtitle="Bring data in from a standalone በጅሮንድ app" onBack={pop} />
+        <TopHeader ctx={ctx} title="Import data" subtitle="Bring data in from a standalone በጅሮንድ app" onBack={pop} />
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <div className="text-xs text-slate-500 px-1">
             If you used one of the single-tool በጅሮንድ apps before switching to the full bundle, export your data from
@@ -1368,7 +1391,7 @@ function MoreAppsScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="More በጅሮንድ Apps" subtitle="Other በጅሮንድ tools" onBack={pop} />
+      <TopHeader ctx={ctx} title="More በጅሮንድ Apps" subtitle="Other በጅሮንድ tools" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         <ProductRow product={BUNDLE_PRODUCT} isBundleCard />
         <div className="text-xs font-medium text-slate-400 uppercase px-1 pt-2">Also available separately</div>
@@ -1440,7 +1463,7 @@ function Router({ ctx, tab, setTab }) {
 
 // ---------- Books list ----------
 function BooksScreen({ ctx }) {
-  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses, createBusiness, sessionBusinessConfirmed, confirmBusinessSelection } = ctx;
+  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses, createBusiness, sessionBusinessConfirmed, confirmBusinessSelection, theme, persistTheme } = ctx;
   const [showTemplates, setShowTemplates] = useState(false);
   const [newName, setNewName] = useState("");
   const [balances, setBalances] = useState({});
@@ -1503,6 +1526,11 @@ function BooksScreen({ ctx }) {
           <ChevronDown size={16} className="text-slate-400 shrink-0" />
         </button>
         <button onClick={() => push("businessTeam")} className="p-2 text-teal-700"><UserPlus size={20} /></button>
+        <button onClick={() => persistTheme(theme === "dark" ? "light" : "dark")}
+          className="shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+          title={theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-4">
@@ -1583,7 +1611,7 @@ function SwitchBusinessScreen({ ctx, embedded, onDone }) {
   const finish = () => { if (embedded) onDone?.(); else pop(); };
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Select Business" right={<button onClick={finish}><X size={20} className="text-slate-500" /></button>} />
+      <TopHeader ctx={ctx} title="Select Business" right={<button onClick={finish}><X size={20} className="text-slate-500" /></button>} />
       <div className="p-4 space-y-2 flex-1 overflow-y-auto">
         {embedded && (
           <p className="text-xs text-slate-500 mb-1">
@@ -1721,7 +1749,7 @@ function BookScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader
+      <TopHeader ctx={ctx}
         title={book.name}
         subtitle="Add Member, Book Activity etc"
         onBack={selectMode ? exitSelectMode : pop}
@@ -1957,7 +1985,7 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
   if (!entry) {
     return (
       <div className="flex-1 flex flex-col">
-        <TopHeader title="Entry" onBack={pop} />
+        <TopHeader ctx={ctx} title="Entry" onBack={pop} />
         <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-700" size={24} /></div>
       </div>
     );
@@ -1968,7 +1996,7 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Entry Details" onBack={pop} />
+      <TopHeader ctx={ctx} title="Entry Details" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className={`rounded-xl p-4 text-center ${isIn ? "bg-emerald-50" : "bg-rose-50"}`}>
           <div className={`text-xs font-medium ${isIn ? "text-emerald-800" : "text-rose-800"}`}>{isIn ? "Cash In" : "Cash Out"}</div>
@@ -2094,7 +2122,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
+      <TopHeader ctx={ctx} title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
         right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isEdit && (
@@ -2219,7 +2247,7 @@ function BookSettingsScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Book Settings" onBack={pop} />
+      <TopHeader ctx={ctx} title="Book Settings" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="text-xs text-slate-500 mb-1">Cashbook Name</div>
@@ -2298,7 +2326,7 @@ function ActivityScreen({ ctx, bookId }) {
   useEffect(() => { getActivity(bookId).then(setActivity); }, [bookId]);
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Book Activity" onBack={pop} />
+      <TopHeader ctx={ctx} title="Book Activity" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4">
         {activity === null ? (
           <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-700" size={24} /></div>
@@ -2349,7 +2377,7 @@ function AddMemberScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Manage Members" onBack={pop} />
+      <TopHeader ctx={ctx} title="Manage Members" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
         <div className="text-xs font-medium text-slate-400 uppercase">Members</div>
         {members.length === 0 && <div className="text-sm text-slate-400">No members added yet.</div>}
@@ -2404,7 +2432,7 @@ function ReportsScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Generate Report" onBack={pop} />
+      <TopHeader ctx={ctx} title="Generate Report" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="text-sm font-medium text-slate-700">Report will be generated for</div>
 
@@ -2600,7 +2628,7 @@ function ReportViewScreen({ ctx, bookId, filters }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Report" onBack={pop}
+      <TopHeader ctx={ctx} title="Report" onBack={pop}
         right={<button onClick={downloadPdf} disabled={exporting} className="p-2 text-teal-700 disabled:opacity-40"><Printer size={18} /></button>} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4" id="report-printable">
         <div className="text-center">
@@ -2709,7 +2737,7 @@ function ChartsScreen({ ctx, bookId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Expense Breakdown" subtitle={book?.name} onBack={pop} />
+      <TopHeader ctx={ctx} title="Expense Breakdown" subtitle={book?.name} onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="flex gap-2">
           <Chip active={groupBy === "category"} tone="rose" onClick={() => setGroupBy("category")}>By Category</Chip>
@@ -2817,7 +2845,7 @@ function ThemeScreen({ ctx }) {
   const { pop, theme, persistTheme } = ctx;
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Appearance" subtitle="Pick a theme for the app" onBack={pop} />
+      <TopHeader ctx={ctx} title="Appearance" subtitle="Pick a theme for the app" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {THEME_GROUP_ORDER.map((group) => (
           <div key={group}>
@@ -2909,7 +2937,7 @@ function QuickAccessScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Quick Access" subtitle="Reach Expenses Manager without opening the app first" onBack={pop} />
+      <TopHeader ctx={ctx} title="Quick Access" subtitle="Reach Expenses Manager without opening the app first" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {!native && (
           <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -2979,7 +3007,7 @@ function SettingsScreen({ ctx }) {
   );
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Settings" />
+      <TopHeader ctx={ctx} title="Settings" />
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={Users} title="Business Team" sub="Add, remove or change role" onClick={() => push("businessTeam")} />
@@ -3023,7 +3051,7 @@ function BusinessTeamScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Business Team" onBack={pop}
+      <TopHeader ctx={ctx} title="Business Team" onBack={pop}
         right={<button onClick={() => setAdding((v) => !v)} className="p-2 text-teal-700"><UserPlus size={18} /></button>} />
       <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-28">
         <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-3">
@@ -3087,7 +3115,7 @@ function MoveRequestsScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Move Book Requests" onBack={pop} />
+      <TopHeader ctx={ctx} title="Move Book Requests" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {requests.length === 0 ? (
           <EmptyState icon={Inbox} title="No pending requests" hint="Requests to move a book into this business will appear here." />
@@ -3134,7 +3162,7 @@ function BusinessSettingsScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Business Settings" onBack={pop} />
+      <TopHeader ctx={ctx} title="Business Settings" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="text-xs text-slate-500 mb-1">Business Name</div>
@@ -3187,7 +3215,7 @@ function AppSettingsScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="App Settings" onBack={pop} />
+      <TopHeader ctx={ctx} title="App Settings" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="font-medium text-slate-800 mb-2">Currency</div>
@@ -3308,7 +3336,7 @@ function LoanCalculatorScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Loan Calculator" subtitle="Amortization schedule" onBack={pop} />
+      <TopHeader ctx={ctx} title="Loan Calculator" subtitle="Amortization schedule" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <div>
@@ -3485,7 +3513,7 @@ function BudgetScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Budget" subtitle="Income, expenses & where the rest goes" onBack={pop} />
+      <TopHeader ctx={ctx} title="Budget" subtitle="Income, expenses & where the rest goes" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-10">
 
         <div className={`rounded-xl p-4 text-white ${remainder >= 0 ? "bg-teal-700" : "bg-rose-700"}`}>
@@ -3584,7 +3612,7 @@ function TripOrganizerScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Trip Organizer" subtitle="Plan your trips" onBack={pop} />
+      <TopHeader ctx={ctx} title="Trip Organizer" subtitle="Plan your trips" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
           <div className="font-medium text-slate-800 text-sm">New trip</div>
@@ -3650,7 +3678,7 @@ function TripDetailScreen({ ctx, tripId }) {
   if (!trip) {
     return (
       <div className="flex-1 flex flex-col">
-        <TopHeader title="Trip" onBack={pop} />
+        <TopHeader ctx={ctx} title="Trip" onBack={pop} />
         <div className="flex-1 flex items-center justify-center text-sm text-slate-400">Loading…</div>
       </div>
     );
@@ -3661,7 +3689,7 @@ function TripDetailScreen({ ctx, tripId }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title={trip.name} subtitle="Trip details" onBack={pop} />
+      <TopHeader ctx={ctx} title={trip.name} subtitle="Trip details" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-10">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <label className="block">
@@ -3753,7 +3781,7 @@ function RemindersScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Reminders" onBack={pop} />
+      <TopHeader ctx={ctx} title="Reminders" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0">
@@ -3809,7 +3837,7 @@ function ProfileScreen({ ctx }) {
   const save = async (next) => { setProfile(next); await storeSet("profile", next); };
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Your Profile" onBack={pop} />
+      <TopHeader ctx={ctx} title="Your Profile" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <label className="block">
           <div className="text-xs text-slate-500 mb-1">Name</div>
@@ -3832,7 +3860,7 @@ function AboutScreen({ ctx }) {
   const { pop } = ctx;
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="About በጅሮንድ" onBack={pop} />
+      <TopHeader ctx={ctx} title="About በጅሮንድ" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm text-slate-600">
         <p>በጅሮንድ is a simple ledger for tracking cash in and cash out across businesses and books, with lightweight team roles and exportable reports.</p>
         <p>All your data is stored privately and stays on your account only.</p>
@@ -3842,10 +3870,10 @@ function AboutScreen({ ctx }) {
   );
 }
 
-function HelpScreen() {
+function HelpScreen({ ctx }) {
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Help" />
+      <TopHeader ctx={ctx} title="Help" />
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {[
           ["How do I add a cash entry?", "Open a book, tap Cash In or Cash Out, fill in the amount and details, then Save."],
