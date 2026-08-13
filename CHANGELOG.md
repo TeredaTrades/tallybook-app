@@ -3,6 +3,28 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 7) — Business picker on login, standalone Expenses Manager APK
+- Fixed Expenses Manager (Cashbooks) so that a returning user with more than
+  one business now lands on the "Select Business" picker each time they log
+  back in (after the Welcome back PIN screen), instead of being silently
+  dropped straight into whichever business happened to be active last
+  session. Picking a business (or dismissing with the X, which keeps the
+  previous one) only asks once per session — navigating between tabs
+  afterward doesn't re-prompt. Users with 0 or 1 business are unaffected and
+  go straight in as before.
+- Added a second, standalone build of just the Expenses Manager: Welcome/PIN,
+  business picker, and books/entries only — no Home hub, and therefore no
+  Loan Calculator, Budget, Trip Organizer, forex ticker, or financial news
+  (Home is their only entry point, so removing it drops them too). Built via
+  `npm run build:standalone` (new Vite mode, `VITE_APP_VARIANT=standalone-
+  expenses`) into its own `dist-standalone` folder, packaged as its own APK
+  (`com.teredatrades.tallybook.expenses`, labeled "TallyBook Expenses" on the
+  Android launcher so it can be installed side by side with the full app).
+  The GitHub Actions workflow now builds both APKs on every push and attaches
+  them to a new GitHub Release for that run (in addition to the existing
+  Actions-tab artifacts), so both are downloadable without needing a
+  workflow re-run per variant.
+
 ## 2026-08-13 (cont. 6) — Quick toggle, pattern themes, holiday themes
 - Added a light/dark quick-toggle button (sun/moon icon) to the Home screen
   header — one tap flips between light and dark regardless of which theme

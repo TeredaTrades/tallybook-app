@@ -45,6 +45,12 @@ that once and scoping all three together rather than separately.
 ## Done
 _(move items here once handled, with the date)_
 
+- Business picker now shows on login for returning users with more than one
+  business, instead of auto-continuing in whichever one was last active.
+  Also split out a standalone "Expenses Manager only" APK (no Home hub, so
+  no Loan Calculator/Budget/Trip Organizer/forex/news) built alongside the
+  full app on every push (2026-08-13)
+
 - Light/dark quick-toggle button added to Home's header; Appearance screen
   regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;
   "Islamic" theme renamed to "Green & Gold"; added 3 pattern themes (Light

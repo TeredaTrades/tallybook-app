@@ -18,6 +18,12 @@ import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // ---------- constants ----------
+// Build-time variant switch. The "standalone-expenses" variant (built via
+// `npm run build:standalone`) ships only the Cashbooks/Expenses Manager flow
+// (Welcome/PIN, business picker, books & entries) and drops the Home hub —
+// which also means Loan Calculator, Budget, Trip Organizer, forex, and news
+// are dropped too, since Home is their only entry point.
+const IS_STANDALONE_EXPENSES = import.meta.env.VITE_APP_VARIANT === "standalone-expenses";
 const DEFAULT_CATEGORIES = ["Home", "Electronics", "Food", "Salary", "Rent", "Transport", "Utilities", "Other"];
 const DEFAULT_PAYMENT_MODES = ["Cash", "Online", "Card", "Cheque"];
 const CURRENCIES = { "$": "USD", "Br": "ETB", "₹": "INR", "€": "EUR", "£": "GBP" };
@@ -338,7 +344,7 @@ function BottomNav({ tab, setTab }) {
     { id: "books", label: "Cashbooks", icon: BookMarked },
     { id: "help", label: "Help", icon: HelpCircle },
     { id: "settings", label: "Settings", icon: SettingsIcon },
-  ];
+  ].filter((it) => !IS_STANDALONE_EXPENSES || it.id !== "home"); // standalone build has no Home hub
   return (
     <div className="border-t border-slate-200 bg-white flex">
       {items.map((it) => {
@@ -551,12 +557,20 @@ export default function TallyBookApp() {
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState(null);
   const [unlocked, setUnlocked] = useState(false); // resets every cold start — that's what gives the "welcome back" login its purpose
+  // Whether the user has actively confirmed which business they're working in
+  // this session. Resets to false on every cold start (like `unlocked`), so a
+  // returning user with more than one business lands on the business picker
+  // instead of being silently dropped back into whichever one was active last
+  // time. Businesses load async, so this starts false and gets flipped true in
+  // the initial-load effect once we know there's 0 or 1 business (nothing to
+  // pick), or as soon as the user picks/creates one this session.
+  const [sessionBusinessConfirmed, setSessionBusinessConfirmed] = useState(false);
   const [businesses, setBusinesses] = useState([]);
   const [session, setSession] = useState({ activeBusinessId: null, viewingAs: null });
   const [appSettings, setAppSettings] = useState({ categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
   const [theme, setTheme] = useState("light");
-  const [tab, setTab] = useState("home");
-  const [stack, setStack] = useState([{ screen: "home" }]);
+  const [tab, setTab] = useState(IS_STANDALONE_EXPENSES ? "books" : "home");
+  const [stack, setStack] = useState([{ screen: IS_STANDALONE_EXPENSES ? "books" : "home" }]);
   const [entriesCache, setEntriesCache] = useState({}); // bookId -> entries
   const [activityCache, setActivityCache] = useState({}); // bookId -> activity
   const [plannedItems, setPlannedItems] = useState([]); // things to buy / pay for (global, not tied to a book)
@@ -586,6 +600,10 @@ export default function TallyBookApp() {
       setPlannedItems(planned);
       const activeId = sess.activeBusinessId && biz.find(b => b.id === sess.activeBusinessId) ? sess.activeBusinessId : (biz[0]?.id || null);
       setSession({ ...sess, activeBusinessId: activeId });
+      // 0 or 1 business means there's nothing to pick between, so skip the
+      // picker and go straight in, same as before. 2+ means it stays false —
+      // see the SwitchBusinessScreen render inside BooksScreen below.
+      if (biz.length <= 1) setSessionBusinessConfirmed(true);
       setLoading(false);
       checkNotifPermission().then(setNotifPermission);
       ensureReminderChannel();
@@ -720,8 +738,10 @@ export default function TallyBookApp() {
     const next = [...businesses, nb];
     await persistBusinesses(next);
     await persistSession({ ...session, activeBusinessId: nb.id });
+    setSessionBusinessConfirmed(true); // creating one counts as picking it
     return nb;
   };
+  const confirmBusinessSelection = useCallback(() => setSessionBusinessConfirmed(true), []);
 
   const createBook = async (name) => {
     if (!activeBusiness) return;
@@ -771,6 +791,7 @@ export default function TallyBookApp() {
     persistBusinesses, persistSession, persistSettings,
     getEntries, saveEntries, getActivity, logActivity,
     createBusiness, createBook,
+    sessionBusinessConfirmed, confirmBusinessSelection,
     push, pop, resetTo, stack, top,
     plannedItems, persistPlanned, notifPermission, requestNotifPermission,
     theme, persistTheme,
@@ -1214,7 +1235,7 @@ function Router({ ctx, tab, setTab }) {
 
 // ---------- Books list ----------
 function BooksScreen({ ctx }) {
-  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses, createBusiness } = ctx;
+  const { activeBusiness, push, canManage, getEntries, appSettings, businesses, persistBusinesses, createBusiness, sessionBusinessConfirmed, confirmBusinessSelection } = ctx;
   const [showTemplates, setShowTemplates] = useState(false);
   const [newName, setNewName] = useState("");
   const [balances, setBalances] = useState({});
@@ -1255,6 +1276,13 @@ function BooksScreen({ ctx }) {
         await createBusiness(managing === "personal" ? "My Cashbook" : "My Business");
       }} />
     );
+  }
+
+  // Returning user with more than one business, who hasn't picked one yet this
+  // session (e.g. just unlocked the app) — show the picker instead of silently
+  // continuing in whichever business happened to be active last time.
+  if (businesses.length > 1 && !sessionBusinessConfirmed) {
+    return <SwitchBusinessScreen ctx={ctx} embedded onDone={confirmBusinessSelection} />;
   }
 
   return (
@@ -1336,17 +1364,27 @@ function BooksScreen({ ctx }) {
   );
 }
 
-function SwitchBusinessScreen({ ctx }) {
+// `embedded` + `onDone` let this screen double as the Cashbooks/Expenses
+// Manager landing screen itself (rather than only a modal pushed on top of
+// it) — used by BooksScreen to force a fresh pick each login when there's
+// more than one business. In that mode there's no screen underneath to
+// `pop()` back to, so selecting/creating a business (or dismissing) calls
+// `onDone` instead, which just marks the session as confirmed.
+function SwitchBusinessScreen({ ctx, embedded, onDone }) {
   const { businesses, session, persistSession, pop, createBusiness } = ctx;
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const finish = () => { if (embedded) onDone?.(); else pop(); };
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Select Business" right={<button onClick={pop}><X size={20} className="text-slate-500" /></button>} />
+      <TopHeader title="Select Business" right={<button onClick={finish}><X size={20} className="text-slate-500" /></button>} />
       <div className="p-4 space-y-2 flex-1 overflow-y-auto">
+        {embedded && (
+          <p className="text-xs text-slate-500 mb-1">Choose which business to open. You have more than one saved — pick one below or add another.</p>
+        )}
         <div className="text-xs font-medium text-slate-400 uppercase mb-1">Your businesses</div>
         {businesses.map((b) => (
-          <button key={b.id} onClick={async () => { await persistSession({ ...session, activeBusinessId: b.id, viewingAs: null }); pop(); }}
+          <button key={b.id} onClick={async () => { await persistSession({ ...session, activeBusinessId: b.id, viewingAs: null }); finish(); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border ${session.activeBusinessId === b.id ? "border-teal-600 bg-teal-50" : "border-slate-200 bg-white"}`}>
             <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700"><Building2 size={16} /></div>
             <div className="flex-1 text-left">
@@ -1360,7 +1398,7 @@ function SwitchBusinessScreen({ ctx }) {
           <div className="flex gap-2 pt-2">
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Business name"
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-            <button onClick={async () => { if (name.trim()) { await createBusiness(name.trim()); pop(); } }}
+            <button onClick={async () => { if (name.trim()) { await createBusiness(name.trim()); finish(); } }}
               className="bg-teal-700 text-white px-3 rounded-lg text-sm font-medium">Add</button>
           </div>
         ) : (
