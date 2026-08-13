@@ -3,6 +3,25 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 12) — More Apps branding, "Get" buttons, trading card
+- More Apps screen title changed from "More Apps" to "More በጅሮንድ Apps".
+- Every product name shown on that screen now carries the በጅሮንድ prefix:
+  the bundle card is now "በጅሮንድ Finances" (was "በጅሮንድ — All-in-One"), and
+  the four single-tool products are "በጅሮንድ Expenses Manager", "በጅሮንድ Loan
+  Calculator", "በጅሮንድ Budget", and "በጅሮንድ Trip Organizer".
+- The grayed-out "Coming soon" pill (shown when a product has no
+  `playStoreUrl` yet) is now an actively-styled "Get" button instead —
+  doesn't link anywhere yet since the Play Store URLs still aren't set up
+  (see NOTES.md), but no longer looks disabled. The existing linked button
+  is now labeled "Get" too (was "Get it"), so both states read the same.
+- Added the "Want to learn about trading?" placeholder card (not linked
+  yet — same as the one on Home) to the bottom of the More Apps screen too,
+  since the Expenses Manager standalone build has no Home screen and
+  otherwise had no way to reach it.
+- Made on `individual-base` and merged into all four `individual/*` product
+  branches. `main` is unaffected — the bundle build's "more" tab is the
+  Import screen, not this one.
+
 ## 2026-08-13 (cont. 11) — [individual-base branch] Merged Select Business always-shown & fainter floating icon
 - Merged in from `main`: the Expenses Manager always opens on Select Business now,
   even with only one business saved (previously that screen was skipped at 0/1
