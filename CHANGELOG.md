@@ -3,6 +3,14 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 11) — [individual-base branch] Merged Select Business always-shown & fainter floating icon
+- Merged in from `main`: the Expenses Manager always opens on Select Business now,
+  even with only one business saved (previously that screen was skipped at 0/1
+  business — see the `main` entry below for the full description), and the floating
+  icon (Settings > Quick Access) is smaller and semi-transparent. Applies here
+  unchanged and carries forward into every `individual/*` product branch merged
+  from this one, including `individual/expenses-manager`.
+
 ## 2026-08-13 (cont. 10) — [individual-base branch] Merged cross-business move/copy & Quick Access
 - Merged in from `main`: cross-business move/copy for the Expenses Manager, and
   Settings > Quick Access (home screen widget + floating icon). See the `main`
@@ -82,6 +90,19 @@ overall plan.
     only that the web bundle builds and `npx cap sync android` completes cleanly. The
     actual native compile is validated by the GitHub Actions build; if the floating
     icon behaves oddly on a given OEM's Android build, that's the first thing to check.
+
+## 2026-08-13 (cont. 10) — [main branch] Select Business always shown, fainter floating icon
+- Expenses Manager (Cashbooks) now always opens on the "Select Business" screen on
+  a fresh session, even for a user with only one business — previously that screen
+  only showed when there were 2+ businesses, and a single-business user was dropped
+  straight into their books. The "Select Business" screen's copy adjusts depending on
+  whether there's one business or several. This applies to both the full bundle app
+  and the standalone Expenses Manager build, since both share the same underlying
+  screen. A user with 0 businesses is unaffected — they still land on "what will you
+  manage?" to create their first one, since there's nothing yet to pick between.
+- The floating icon (Settings > Quick Access) is now smaller (40dp, was 56dp) and
+  semi-transparent (55% opacity) so it sits more quietly over whatever app it's
+  floating on top of, rather than fully solid at a larger size.
 
 ## 2026-08-13 (cont. 8) — [main branch] Clean up misplaced standalone-build scaffold
 - The previous entry below added a `VITE_APP_VARIANT`/`.env.standalone`

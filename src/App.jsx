@@ -638,10 +638,11 @@ export default function TallyBookApp() {
       setPlannedItems(planned);
       const activeId = sess.activeBusinessId && biz.find(b => b.id === sess.activeBusinessId) ? sess.activeBusinessId : (biz[0]?.id || null);
       setSession({ ...sess, activeBusinessId: activeId });
-      // 0 or 1 business means there's nothing to pick between, so skip the
-      // picker and go straight in, same as before. 2+ means it stays false —
+      // 0 businesses means there's nothing to pick yet (goes to the "create
+      // your first business" screen instead). 1+ means it stays false, so the
+      // Expenses Manager always lands on the Select Business screen first —
       // see the SwitchBusinessScreen render inside BooksScreen below.
-      if (biz.length <= 1) setSessionBusinessConfirmed(true);
+      if (biz.length === 0) setSessionBusinessConfirmed(true);
       setLoading(false);
       checkNotifPermission().then(setNotifPermission);
       ensureReminderChannel();
@@ -1469,10 +1470,11 @@ function BooksScreen({ ctx }) {
     );
   }
 
-  // Returning user with more than one business, who hasn't picked one yet this
-  // session (e.g. just unlocked the app) — show the picker instead of silently
-  // continuing in whichever business happened to be active last time.
-  if (businesses.length > 1 && !sessionBusinessConfirmed) {
+  // Returning user who hasn't confirmed a business yet this session (e.g. just
+  // unlocked the app) — show the picker instead of silently continuing in
+  // whichever business happened to be active last time. Shown even with just
+  // one business, so Expenses Manager always opens on Select Business first.
+  if (businesses.length >= 1 && !sessionBusinessConfirmed) {
     return <SwitchBusinessScreen ctx={ctx} embedded onDone={confirmBusinessSelection} />;
   }
 
@@ -1571,7 +1573,11 @@ function SwitchBusinessScreen({ ctx, embedded, onDone }) {
       <TopHeader title="Select Business" right={<button onClick={finish}><X size={20} className="text-slate-500" /></button>} />
       <div className="p-4 space-y-2 flex-1 overflow-y-auto">
         {embedded && (
-          <p className="text-xs text-slate-500 mb-1">Choose which business to open. You have more than one saved — pick one below or add another.</p>
+          <p className="text-xs text-slate-500 mb-1">
+            {businesses.length > 1
+              ? "Choose which business to open. You have more than one saved — pick one below or add another."
+              : "Choose which business to open, or add another."}
+          </p>
         )}
         <div className="text-xs font-medium text-slate-400 uppercase mb-1">Your businesses</div>
         {businesses.map((b) => (

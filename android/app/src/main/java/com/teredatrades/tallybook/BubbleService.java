@@ -89,8 +89,12 @@ public class BubbleService extends Service {
 
         bubbleView = new ImageView(this);
         bubbleView.setImageResource(R.mipmap.ic_launcher_round);
-        int sizePx = (int) (56 * getResources().getDisplayMetrics().density);
+        // Smaller and semi-transparent by design — it's a quick shortcut back into the
+        // app, not something that should compete for attention while it floats over
+        // whatever else the user is doing.
+        int sizePx = (int) (40 * getResources().getDisplayMetrics().density);
         bubbleView.setLayoutParams(new WindowManager.LayoutParams(sizePx, sizePx));
+        bubbleView.setAlpha(0.55f);
 
         windowManager.addView(bubbleView, bubbleParams);
 
