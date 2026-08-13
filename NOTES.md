@@ -71,6 +71,11 @@ via a normal merge from `individual-base`.
 ## Done
 _(move items here once handled, with the date)_
 
+- Ported the business-picker-on-login fix from `main` onto this branch, so
+  all `individual/*` product apps get it too: returning user with 2+
+  businesses lands on Select Business again instead of auto-continuing in
+  the last-active one (2026-08-13)
+
 - Light/dark quick-toggle button added to Home's header; Appearance screen
   regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;
   "Islamic" theme renamed to "Green & Gold"; added 3 pattern themes (Light
