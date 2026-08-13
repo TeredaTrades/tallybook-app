@@ -7,15 +7,24 @@ import {
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
   CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
   Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX,
-  PiggyBank, Plane, MapPin, Luggage, Palette, Sun, Moon, PartyPopper
+  PiggyBank, Plane, MapPin, Luggage, Palette, Sun, Moon, PartyPopper,
+  LayoutGrid, Move
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
+// Native-only local plugin (no JS package — implemented directly in the Android project,
+// see android/app/src/main/java/com/teredatrades/tallybook/TallyWidgetPlugin.java) that
+// backs the Home screen widget and floating-icon Quick Access options. Every method is a
+// no-op that resolves harmlessly on web/dev preview and is wrapped in try/catch at the
+// call sites below, so a device that doesn't support one of these (or the plugin failing
+// to register for any reason) never breaks the rest of the app.
+const TallyWidget = registerPlugin("TallyWidget");
 
 // ---------- constants ----------
 const DEFAULT_CATEGORIES = ["Home", "Electronics", "Food", "Salary", "Rent", "Transport", "Utilities", "Other"];
@@ -188,6 +197,27 @@ async function ensureReminderChannel() {
       lights: true,
     });
   } catch (e) { console.error("create reminder channel failed", e); }
+}
+// ---------- Quick Access: Home screen widget + floating icon ----------
+// Pushes a short "net balance" summary text to the native widget/bubble layer.
+// Fire-and-forget: called opportunistically whenever books/entries change so the
+// widget stays fresh next time it redraws, but nothing in the app waits on it.
+async function pushWidgetBalance(businesses, appSettings) {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const active = businesses?.[0];
+    if (!active) { await TallyWidget.updateBalance({ text: "No businesses yet" }); return; }
+    let total = 0;
+    for (const biz of businesses) {
+      for (const bk of biz.books) {
+        const es = await storeGet(`entries:${bk.id}`, []);
+        total += es.reduce((s, e) => s + (e.type === "in" ? e.amount : -e.amount), 0);
+      }
+    }
+    const cur = appSettings?.currency || "$";
+    const text = `${total >= 0 ? "+" : "-"}${cur}${Math.abs(total).toLocaleString()}`;
+    await TallyWidget.updateBalance({ text });
+  } catch (e) { /* widget is a nice-to-have — never let this affect the app */ }
 }
 async function schedulePlannedReminder(item) {
   if (!Capacitor.isNativePlatform() || !item.reminderAt) return;
@@ -601,6 +631,7 @@ export default function TallyBookApp() {
       setLoading(false);
       checkNotifPermission().then(setNotifPermission);
       ensureReminderChannel();
+      pushWidgetBalance(biz, settings);
     })();
   }, []);
 
@@ -700,7 +731,8 @@ export default function TallyBookApp() {
   const saveEntries = useCallback(async (bookId, next) => {
     setEntriesCache((c) => ({ ...c, [bookId]: next }));
     await storeSet(`entries:${bookId}`, next);
-  }, []);
+    pushWidgetBalance(businesses, appSettings);
+  }, [businesses, appSettings]);
 
   const logActivity = useCallback(async (bookId, text) => {
     const cur = activityCache[bookId] || (await storeGet(`activity:${bookId}`, []));
@@ -1219,6 +1251,7 @@ function Router({ ctx, tab, setTab }) {
     case "tripDetail": return <TripDetailScreen ctx={ctx} tripId={top.tripId} />;
     case "reminders": return <RemindersScreen ctx={ctx} />;
     case "theme": return <ThemeScreen ctx={ctx} />;
+    case "quickAccess": return <QuickAccessScreen ctx={ctx} />;
     case "profile": return <ProfileScreen ctx={ctx} />;
     case "about": return <AboutScreen ctx={ctx} />;
     case "switchBusiness": return <SwitchBusinessScreen ctx={ctx} />;
@@ -1407,7 +1440,7 @@ function SwitchBusinessScreen({ ctx, embedded, onDone }) {
 
 // ---------- Book screen ----------
 function BookScreen({ ctx, bookId }) {
-  const { activeBusiness, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity } = ctx;
+  const { activeBusiness, businesses, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity } = ctx;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const [entries, setEntries] = useState(null);
   const [search, setSearch] = useState("");
@@ -1420,7 +1453,12 @@ function BookScreen({ ctx, bookId }) {
 
   if (!book) return <EmptyState icon={BookMarked} title="Book not found" />;
 
-  const otherBooks = (activeBusiness?.books || []).filter((b) => b.id !== bookId);
+  // Move/copy targets span every business the user has, not just the active one —
+  // each book is tagged with which business it belongs to so the picker can group
+  // them and doMoveOrCopy can find it regardless of which business is "active".
+  const otherBooks = (businesses || [])
+    .flatMap((biz) => biz.books.map((b) => ({ ...b, businessId: biz.id, businessName: biz.name })))
+    .filter((b) => b.id !== bookId);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
@@ -1445,7 +1483,13 @@ function BookScreen({ ctx, bookId }) {
     if (!selected || selected.length === 0) return;
     const selectedIdSet = new Set(selected.map((e) => e.id));
     const targetBook = otherBooks.find((b) => b.id === targetBookId);
-    const stamp = { transferredFrom: book?.name, transferredAt: new Date().toISOString() };
+    // Include the source business name in the stamp when the move/copy crosses into a
+    // different business, so the entry's transfer history stays legible from either side.
+    const crossBusiness = targetBook && targetBook.businessId !== activeBusiness?.id;
+    const stamp = {
+      transferredFrom: crossBusiness ? `${book?.name} (${activeBusiness?.name})` : book?.name,
+      transferredAt: new Date().toISOString(),
+    };
     const sourceEntries = await getEntries(bookId);
     const targetEntries = await getEntries(targetBookId);
     const count = selected.length;
@@ -1602,7 +1646,7 @@ function BookScreen({ ctx, bookId }) {
       )}
 
       {moveCopyEntries && (
-        <MoveCopyModal entries={moveCopyEntries} otherBooks={otherBooks} cur={cur}
+        <MoveCopyModal entries={moveCopyEntries} otherBooks={otherBooks} cur={cur} activeBusinessId={activeBusiness?.id}
           onClose={() => setMoveCopyEntries(null)} onAction={doMoveOrCopy} />
       )}
     </div>
@@ -1653,9 +1697,25 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
   );
 }
 
-function MoveCopyModal({ entries, otherBooks, cur, onClose, onAction }) {
+function MoveCopyModal({ entries, otherBooks, cur, activeBusinessId, onClose, onAction }) {
   const single = entries.length === 1 ? entries[0] : null;
   const totalAmount = entries.reduce((s, e) => s + (e.type === "in" ? e.amount : -e.amount), 0);
+
+  // Group targets by business — current business first (unlabeled, since that's the
+  // common case), then every other business under its own header, so it's always clear
+  // which business a book belongs to before moving/copying money into it.
+  const grouped = [];
+  const byBiz = new Map();
+  for (const b of otherBooks) {
+    if (!byBiz.has(b.businessId)) byBiz.set(b.businessId, []);
+    byBiz.get(b.businessId).push(b);
+  }
+  if (byBiz.has(activeBusinessId)) grouped.push({ businessId: activeBusinessId, businessName: null, books: byBiz.get(activeBusinessId) });
+  for (const [businessId, books] of byBiz) {
+    if (businessId === activeBusinessId) continue;
+    grouped.push({ businessId, businessName: books[0]?.businessName, books });
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div className="w-full max-w-md bg-white rounded-t-2xl max-h-[75vh] flex flex-col" onClick={(ev) => ev.stopPropagation()}>
@@ -1672,16 +1732,25 @@ function MoveCopyModal({ entries, otherBooks, cur, onClose, onAction }) {
         </div>
         <div className="flex-1 overflow-y-auto">
           {otherBooks.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-500">No other books in this business to move or copy into.</div>
+            <div className="p-6 text-center text-sm text-slate-500">No other books to move or copy into yet.</div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {otherBooks.map((b) => (
-                <div key={b.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="font-medium text-slate-800 text-sm">{b.name}</div>
-                  <div className="flex gap-2">
-                    <button onClick={() => onAction(b.id, "copy")} className="text-xs font-medium border border-teal-700 text-teal-700 rounded-lg px-3 py-1.5">Copy</button>
-                    <button onClick={() => onAction(b.id, "move")} className="text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-1.5">Move</button>
-                  </div>
+              {grouped.map((g) => (
+                <div key={g.businessId}>
+                  {g.businessName && (
+                    <div className="px-4 pt-3 pb-1 flex items-center gap-1.5 text-xs font-medium text-slate-400 uppercase bg-slate-50">
+                      <Building2 size={12} /> {g.businessName}
+                    </div>
+                  )}
+                  {g.books.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between px-4 py-3">
+                      <div className="font-medium text-slate-800 text-sm">{b.name}</div>
+                      <div className="flex gap-2">
+                        <button onClick={() => onAction(b.id, "copy")} className="text-xs font-medium border border-teal-700 text-teal-700 rounded-lg px-3 py-1.5">Copy</button>
+                        <button onClick={() => onAction(b.id, "move")} className="text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-1.5">Move</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -2595,6 +2664,127 @@ function ThemeScreen({ ctx }) {
   );
 }
 
+// ---------- Quick Access (home screen widget / floating icon) ----------
+function QuickAccessScreen({ ctx }) {
+  const { pop } = ctx;
+  const native = Capacitor.isNativePlatform();
+  const [overlayGranted, setOverlayGranted] = useState(false);
+  const [bubbleOn, setBubbleOn] = useState(false);
+  const [widgetSupported, setWidgetSupported] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refreshState = useCallback(async () => {
+    if (!native) return;
+    try {
+      const perm = await TallyWidget.hasOverlayPermission();
+      setOverlayGranted(!!perm?.value);
+    } catch { /* plugin not available (e.g. iOS/dev preview) */ }
+    const saved = await storeGet("quick-access-bubble-on", false);
+    setBubbleOn(saved);
+  }, [native]);
+
+  useEffect(() => { refreshState(); }, [refreshState]);
+  // Overlay permission is granted from a system Settings screen outside the app,
+  // so re-check whenever the user comes back to this screen rather than only once.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") refreshState(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshState]);
+
+  const addWidget = async () => {
+    if (!native) return;
+    setBusy(true);
+    try {
+      const res = await TallyWidget.requestPinWidget();
+      if (res && res.supported === false) setWidgetSupported(false);
+    } catch { setWidgetSupported(false); }
+    setBusy(false);
+  };
+
+  const toggleBubble = async () => {
+    if (!native) return;
+    setBusy(true);
+    try {
+      if (!bubbleOn) {
+        const perm = await TallyWidget.hasOverlayPermission();
+        if (!perm?.value) {
+          await TallyWidget.requestOverlayPermission();
+          setBusy(false);
+          return; // user needs to grant it in system Settings, then flip the toggle again
+        }
+        const res = await TallyWidget.startBubble();
+        if (res?.started) { setBubbleOn(true); await storeSet("quick-access-bubble-on", true); }
+      } else {
+        await TallyWidget.stopBubble();
+        setBubbleOn(false);
+        await storeSet("quick-access-bubble-on", false);
+      }
+    } catch (e) { console.error("bubble toggle failed", e); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Quick Access" subtitle="Reach Expenses Manager without opening the app first" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {!native && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            These options only work on an installed Android build, not in this browser preview.
+          </div>
+        )}
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><LayoutGrid size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-slate-900">Home screen widget</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                A small tile on your home screen showing your net balance across every business —
+                tap it any time to jump straight into the app.
+              </div>
+            </div>
+          </div>
+          {widgetSupported ? (
+            <button onClick={addWidget} disabled={!native || busy}
+              className="w-full mt-3 bg-teal-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50">
+              Add widget to Home screen
+            </button>
+          ) : (
+            <div className="text-xs text-slate-500 mt-3">
+              Your device doesn't support adding widgets from inside the app — instead, long-press an
+              empty spot on your home screen, choose Widgets, and find "TallyBook".
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><Move size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-slate-900">Floating icon</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                A small draggable bubble that floats over other apps — tap it to open TallyBook instantly.
+                Requires the "display over other apps" permission, granted once from system Settings.
+              </div>
+            </div>
+            <button onClick={toggleBubble} disabled={!native || busy}
+              className={`shrink-0 w-11 h-6 rounded-full relative transition-colors ${bubbleOn ? "bg-teal-700" : "bg-slate-200"} disabled:opacity-50`}>
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${bubbleOn ? "left-5" : "left-0.5"}`} />
+            </button>
+          </div>
+          {native && !overlayGranted && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-3">
+              Tapping the toggle will open your device's Settings to grant "display over other apps" —
+              come back here and tap it again once it's allowed.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsScreen({ ctx }) {
   const { push } = ctx;
   const Item = ({ icon: Icon, title, sub, onClick }) => (
@@ -2618,6 +2808,7 @@ function SettingsScreen({ ctx }) {
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />
           <Item icon={Bell} title="Reminders" sub="Get notified about things to buy or pay for" onClick={() => push("reminders")} />
           <Item icon={Palette} title="Appearance" sub="Theme & color" onClick={() => push("theme")} />
+          <Item icon={LayoutGrid} title="Quick Access" sub="Home screen widget or floating icon" onClick={() => push("quickAccess")} />
           <Item icon={Eye} title="Your Profile" sub="Name, mobile number, email" onClick={() => push("profile")} />
           <Item icon={Info} title="About በጅሮንድ" sub="Privacy policy, T&C, About us" onClick={() => push("about")} />
         </div>

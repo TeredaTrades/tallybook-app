@@ -3,6 +3,38 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 9) — Cross-business move/copy, Quick Access widget & floating icon
+- Move/copy an entry (or a multi-select batch) in the Expenses Manager can now target
+  a book in *any* of the user's businesses, not just the currently active one. The
+  Move/Copy sheet groups target books by business (active business first, unlabeled;
+  every other business under its own header) so it's always clear which business a
+  book belongs to before sending money into it. When a move/copy crosses businesses,
+  the entry's "transferred from" stamp includes the source business name for clarity.
+- Added Settings > Quick Access with two opt-in ways to reach the Expenses Manager
+  without opening the app first:
+  - **Home screen widget** — a small tile showing the net balance across every
+    business; tapping it opens the app. "Add widget to Home screen" uses
+    `AppWidgetManager.requestPinAppWidget` where supported (Android 8+), otherwise
+    shows manual long-press-to-add instructions. The balance is pushed from the app
+    (after every entry save, and on launch) into a small native widget provider —
+    the widget itself doesn't read app data directly.
+  - **Floating icon** — a small draggable bubble that floats over other apps and
+    opens TallyBook on tap; drag to reposition, tap (without dragging) to open.
+    Requires the "display over other apps" permission — the toggle sends the user to
+    system Settings to grant it once, then starts/stops a foreground service that
+    hosts the bubble. A low-priority "TallyBook floating icon is on" notification is
+    required by Android for any service that outlives the app being open, and doubles
+    as a quick way back to Settings to turn it off.
+  - Implemented via a small app-embedded (not published) Capacitor plugin
+    (`TallyWidgetPlugin`) plus `ExpensesWidgetProvider` (widget) and `BubbleService`
+    (floating icon) — new Android permissions: `SYSTEM_ALERT_WINDOW`,
+    `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` (none requested until the
+    user opts in from Quick Access).
+  - Known gap: this couldn't be verified on a physical device or emulator from here —
+    only that the web bundle builds and `npx cap sync android` completes cleanly. The
+    actual native compile is validated by the GitHub Actions build; if the floating
+    icon behaves oddly on a given OEM's Android build, that's the first thing to check.
+
 ## 2026-08-13 (cont. 8) — Clean up misplaced standalone-build scaffold
 - The previous entry below added a `VITE_APP_VARIANT`/`.env.standalone`
   build-variant scaffold directly on `main` to produce a standalone
