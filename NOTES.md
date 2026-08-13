@@ -71,6 +71,24 @@ via a normal merge from `individual-base`.
 ## Done
 _(move items here once handled, with the date)_
 
+- Ported the business-picker-on-login fix from `main` onto this branch, so
+  all `individual/*` product apps get it too: returning user with 2+
+  businesses lands on Select Business again instead of auto-continuing in
+  the last-active one (2026-08-13)
+- Superseded the above: Expenses Manager now always opens on Select
+  Business, even with just one business saved, instead of only showing
+  that screen at 2+ businesses. Applies to both the bundle app and the
+  standalone Expenses Manager build. Floating icon (Quick Access) made
+  smaller and semi-transparent so it's less obtrusive over other apps
+  (2026-08-13)
+- Removed the `VITE_APP_VARIANT`/`.env.standalone` build scaffold that had
+  been added directly to `main` — it duplicated the existing `individual-
+  base`/`individual/*` branch structure that's the real mechanism for
+  standalone product apps. The standalone Expenses Manager app is built
+  from `individual/expenses-manager` instead (2026-08-13)
+- Merged cross-business move/copy and the Quick Access home screen widget /
+  floating icon in from `main` (2026-08-13)
+
 - Light/dark quick-toggle button added to Home's header; Appearance screen
   regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;
   "Islamic" theme renamed to "Green & Gold"; added 3 pattern themes (Light
