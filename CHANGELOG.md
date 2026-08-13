@@ -3,6 +3,32 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 6) — Quick toggle, pattern themes, holiday themes
+- Added a light/dark quick-toggle button (sun/moon icon) to the Home screen
+  header — one tap flips between light and dark regardless of which theme
+  was active, no need to go into Settings > Appearance.
+- Appearance screen is now grouped into three sections: Solid (the original
+  6 flat-color themes), Pattern, and Holiday.
+- Softened the Pink theme to lighter, more pastel shades (was a fairly
+  saturated hot-pink palette).
+- Renamed the "Islamic" theme to "Green & Gold" — same green/gold palette,
+  just a more general name (theme id unchanged, so existing users' saved
+  selection carries over automatically).
+- Added 3 new Pattern themes: Light Dots, Dark Grid, and Terracotta Waves —
+  each pairs a color palette with a subtle background pattern (dot grid,
+  line grid, diagonal weave). The pattern only paints the app's background
+  layer; every card and form field still sits on a fully solid surface
+  color on top of it, so patterns never reduce text or form legibility.
+- Added 7 Holiday themes (New Year, Genna, Timkat, Eid, Enkutatash, Meskel,
+  Christmas), each with its own palette + pattern, selectable any time from
+  Settings > Appearance.
+- Home now shows a dismissible banner suggesting the matching holiday theme
+  in the days around that holiday ("Try it" applies the theme, the X
+  dismisses it for that occurrence — it won't nag again that year). Eid
+  al-Fitr and Eid al-Adha are lunar-calendar holidays pinned to their 2026
+  Gregorian dates (Mar 20 and May 27) and will need updating for future
+  years, same upkeep tradeoff as the ETB/AED/KES snapshot exchange rates.
+
 ## 2026-08-13 (cont. 5) — Theme support
 - Added an Appearance screen under Settings with 6 theme presets: Light
   (the existing default look), Dark, Brown & Cream, Pink, Islamic (green &

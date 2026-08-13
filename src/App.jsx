@@ -7,7 +7,7 @@ import {
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
   CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
   Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX,
-  PiggyBank, Plane, MapPin, Luggage, Palette
+  PiggyBank, Plane, MapPin, Luggage, Palette, Sun, Moon, PartyPopper
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -959,12 +959,34 @@ const NEWS_API_URL = "https://saurav.tech/NewsAPI/top-headlines/category/busines
 const MARKETPLACE_URL = "https://jiji.com.et";
 
 function HomeScreen({ ctx }) {
-  const { push } = ctx;
+  const { push, theme, persistTheme } = ctx;
   const [rates, setRates] = useState(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [ratesError, setRatesError] = useState(false);
   const [newsArticles, setNewsArticles] = useState(null); // null = not loaded yet / use fallback
   const [failedImages, setFailedImages] = useState(() => new Set());
+  const [holidaySuggestion, setHolidaySuggestion] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const suggestion = getHolidaySuggestion();
+      if (!suggestion) return;
+      const dismissed = await storeGet(`holiday-dismissed-${suggestion.id}-${suggestion.year}`, false);
+      if (!dismissed) setHolidaySuggestion(suggestion);
+    })();
+  }, []);
+
+  const dismissHolidaySuggestion = useCallback(() => {
+    if (!holidaySuggestion) return;
+    storeSet(`holiday-dismissed-${holidaySuggestion.id}-${holidaySuggestion.year}`, true);
+    setHolidaySuggestion(null);
+  }, [holidaySuggestion]);
+
+  const applyHolidayTheme = useCallback(() => {
+    if (!holidaySuggestion) return;
+    persistTheme(holidaySuggestion.id);
+    dismissHolidaySuggestion();
+  }, [holidaySuggestion, persistTheme, dismissHolidaySuggestion]);
 
   const loadRates = useCallback(async () => {
     setRatesLoading(true);
@@ -1021,12 +1043,30 @@ function HomeScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="px-4 py-4 bg-white border-b border-slate-200">
-        <div className="text-lg font-bold text-slate-900">Welcome back</div>
-        <div className="text-xs text-slate-500">Your tools, market rates, and news — all in one place</div>
+      <div className="px-4 py-4 bg-white border-b border-slate-200 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-lg font-bold text-slate-900">Welcome back</div>
+          <div className="text-xs text-slate-500">Your tools, market rates, and news — all in one place</div>
+        </div>
+        <button onClick={() => persistTheme(theme === "dark" ? "light" : "dark")}
+          className="shrink-0 w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-transform"
+          title={theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
+        {holidaySuggestion && (
+          <div className="w-full flex items-center gap-3 bg-white border border-teal-200 rounded-xl p-4">
+            <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 shrink-0"><PartyPopper size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-slate-900 text-sm">{holidaySuggestion.holidayName} is coming up</div>
+              <div className="text-xs text-slate-500">Want to try the matching theme for the occasion?</div>
+            </div>
+            <button onClick={applyHolidayTheme} className="shrink-0 text-xs font-medium bg-teal-700 text-white rounded-lg px-3 py-2">Try it</button>
+            <button onClick={dismissHolidaySuggestion} className="shrink-0 text-slate-400 p-1" title="Dismiss"><X size={16} /></button>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button onClick={() => push("books")}
             className="bg-teal-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
@@ -2431,37 +2471,93 @@ function ChartsScreen({ ctx, bookId }) {
 }
 
 // ---------- Settings tab ----------
+// Groups shown as separate sections on the Appearance screen. "Solid" is
+// the original flat color themes, "Pattern" reuses similar palettes but
+// with a subtle background pattern (dots/grid/stripes) that only ever
+// shows in the gaps between cards — every card and form field still sits
+// on a fully solid surface color, so patterns never affect form readability.
+// "Holiday" themes can also be suggested automatically around the actual
+// holiday — see HOLIDAY_THEMES below.
 const THEME_OPTIONS = [
-  { id: "light", label: "Light", sub: "The default look", swatches: ["#f8fafc", "#0f766e", "#b45309"] },
-  { id: "dark", label: "Dark", sub: "Easier on the eyes at night", swatches: ["#0f172a", "#14b8a6", "#f59e0b"] },
-  { id: "brown-cream", label: "Brown & Cream", sub: "Warm, earthy tones", swatches: ["#f5ede1", "#7c4a25", "#a86b2d"] },
-  { id: "pink", label: "Pink", sub: "Soft rose tones", swatches: ["#fdf1f6", "#be185d", "#db2777"] },
-  { id: "islamic", label: "Islamic", sub: "Green & gold", swatches: ["#f4f8f4", "#0f6b3f", "#b8860b"] },
-  { id: "minimalist", label: "Minimalist", sub: "Clean, modern & monochrome", swatches: ["#fafafa", "#2563eb", "#18181b"] },
+  { id: "light", label: "Light", sub: "The default look", swatches: ["#f8fafc", "#0f766e", "#b45309"], group: "Solid" },
+  { id: "dark", label: "Dark", sub: "Easier on the eyes at night", swatches: ["#0f172a", "#14b8a6", "#f59e0b"], group: "Solid" },
+  { id: "brown-cream", label: "Brown & Cream", sub: "Warm, earthy tones", swatches: ["#f5ede1", "#7c4a25", "#a86b2d"], group: "Solid" },
+  { id: "pink", label: "Pink", sub: "Soft pastel rose", swatches: ["#fef7fa", "#d6598e", "#e17ba6"], group: "Solid" },
+  { id: "islamic", label: "Green & Gold", sub: "Rich green and gold tones", swatches: ["#f4f8f4", "#0f6b3f", "#b8860b"], group: "Solid" },
+  { id: "minimalist", label: "Minimalist", sub: "Clean, modern & monochrome", swatches: ["#fafafa", "#2563eb", "#18181b"], group: "Solid" },
+  { id: "light-dots", label: "Light Dots", sub: "Light theme with a soft dot grid", swatches: ["#f8fafc", "#0f766e", "#b45309"], group: "Pattern" },
+  { id: "dark-grid", label: "Dark Grid", sub: "Dark theme with a fine line grid", swatches: ["#0f172a", "#14b8a6", "#f59e0b"], group: "Pattern" },
+  { id: "terracotta-waves", label: "Terracotta Waves", sub: "Warm terracotta with a diagonal weave", swatches: ["#fdf6ee", "#c2410c", "#9a3412"], group: "Pattern" },
+  { id: "holiday-newyear", label: "New Year", sub: "Midnight blue & gold sparkle", swatches: ["#0b1f3a", "#d4af37", "#14355e"], group: "Holiday" },
+  { id: "holiday-genna", label: "Genna", sub: "Ethiopian Christmas — deep red & gold", swatches: ["#fdf6ec", "#7a1f2b", "#b8860b"], group: "Holiday" },
+  { id: "holiday-timkat", label: "Timkat", sub: "Epiphany — sky blue ripples", swatches: ["#eef7fb", "#0369a1", "#b8860b"], group: "Holiday" },
+  { id: "holiday-eid", label: "Eid", sub: "Green & gold, fine mesh", swatches: ["#f3f9f4", "#0a5c33", "#b8860b"], group: "Holiday" },
+  { id: "holiday-enkutatash", label: "Enkutatash", sub: "Ethiopian New Year — Adey Abeba yellow & green", swatches: ["#f6faf0", "#4d7c0f", "#ca8a04"], group: "Holiday" },
+  { id: "holiday-meskel", label: "Meskel", sub: "Meskel flower purple & gold", swatches: ["#f7f3fa", "#6b21a8", "#ca8a04"], group: "Holiday" },
+  { id: "holiday-christmas", label: "Christmas", sub: "Red, green & a dusting of snow", swatches: ["#fdf5f5", "#b91c1c", "#15803d"], group: "Holiday" },
 ];
+const THEME_GROUP_ORDER = ["Solid", "Pattern", "Holiday"];
+
+// Dates used to auto-suggest a holiday theme on Home around the actual
+// holiday. Fixed-date holidays (month/day) recur every year; Eid al-Fitr
+// and Eid al-Adha follow the lunar Hijri calendar so they're pinned to a
+// specific Gregorian year and need updating once that year passes — same
+// upkeep tradeoff as the ETB/AED/KES snapshot exchange rates on Home.
+const HOLIDAY_THEMES = [
+  { id: "holiday-newyear", holidayName: "New Year", month: 1, day: 1 },
+  { id: "holiday-genna", holidayName: "Genna", month: 1, day: 7 },
+  { id: "holiday-timkat", holidayName: "Timkat", month: 1, day: 19 },
+  { id: "holiday-eid", holidayName: "Eid al-Fitr", month: 3, day: 20, year: 2026 },
+  { id: "holiday-eid", holidayName: "Eid al-Adha", month: 5, day: 27, year: 2026 },
+  { id: "holiday-enkutatash", holidayName: "Enkutatash", month: 9, day: 11 },
+  { id: "holiday-meskel", holidayName: "Meskel", month: 9, day: 27 },
+  { id: "holiday-christmas", holidayName: "Christmas", month: 12, day: 25 },
+];
+// Returns the holiday theme to suggest today (within 3 days before through
+// 1 day after the holiday), or null if none applies / already dismissed
+// for that occurrence this year.
+function getHolidaySuggestion(now = new Date()) {
+  const y = now.getFullYear();
+  for (const h of HOLIDAY_THEMES) {
+    if (h.year && h.year !== y) continue;
+    const target = new Date(y, h.month - 1, h.day);
+    const diffDays = Math.round((target - new Date(y, now.getMonth(), now.getDate())) / 86400000);
+    if (diffDays <= 3 && diffDays >= -1) {
+      return { ...h, year: y };
+    }
+  }
+  return null;
+}
 
 function ThemeScreen({ ctx }) {
   const { pop, theme, persistTheme } = ctx;
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title="Appearance" subtitle="Pick a theme for the app" onBack={pop} />
-      <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
-        {THEME_OPTIONS.map((t) => {
-          const active = theme === t.id;
-          return (
-            <button key={t.id} onClick={() => persistTheme(t.id)}
-              className={`w-full flex items-center gap-3 bg-white border rounded-xl p-4 text-left ${active ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200"}`}>
-              <div className="flex shrink-0 rounded-lg overflow-hidden border border-slate-200 w-10 h-10">
-                {t.swatches.map((c, i) => <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-slate-900 text-sm">{t.label}</div>
-                <div className="text-xs text-slate-500">{t.sub}</div>
-              </div>
-              {active ? <CheckCircle2 size={20} className="text-teal-700 shrink-0" /> : <Circle size={20} className="text-slate-200 shrink-0" />}
-            </button>
-          );
-        })}
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {THEME_GROUP_ORDER.map((group) => (
+          <div key={group}>
+            <div className="text-xs font-medium text-slate-400 uppercase mb-2 px-1">{group}</div>
+            <div className="space-y-2.5">
+              {THEME_OPTIONS.filter((t) => t.group === group).map((t) => {
+                const active = theme === t.id;
+                return (
+                  <button key={t.id} onClick={() => persistTheme(t.id)}
+                    className={`w-full flex items-center gap-3 bg-white border rounded-xl p-4 text-left ${active ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200"}`}>
+                    <div className="flex shrink-0 rounded-lg overflow-hidden border border-slate-200 w-10 h-10">
+                      {t.swatches.map((c, i) => <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-900 text-sm">{t.label}</div>
+                      <div className="text-xs text-slate-500">{t.sub}</div>
+                    </div>
+                    {active ? <CheckCircle2 size={20} className="text-teal-700 shrink-0" /> : <Circle size={20} className="text-slate-200 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -38,10 +38,20 @@ that once and scoping all three together rather than separately.
 -
 
 ## Open decisions
--
+- Fasika (Orthodox Easter) isn't in the holiday-theme rotation yet — its
+  date moves every year and needs a reliable lookup before adding it the
+  same way as the other holidays.
 
 ## Done
 _(move items here once handled, with the date)_
+
+- Light/dark quick-toggle button added to Home's header; Appearance screen
+  regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;
+  "Islamic" theme renamed to "Green & Gold"; added 3 pattern themes (Light
+  Dots, Dark Grid, Terracotta Waves) and 7 holiday themes (New Year, Genna,
+  Timkat, Eid, Enkutatash, Meskel, Christmas) with a dismissible Home
+  banner that suggests the matching one around each actual holiday
+  (2026-08-13)
 
 - Theme support: added an Appearance screen (Settings > Appearance) with 6
   presets — Light (default), Dark, Brown & Cream, Pink, Islamic (green &
