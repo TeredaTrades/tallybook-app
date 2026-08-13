@@ -19,29 +19,29 @@ export const IS_BUNDLE = APP_VARIANT === "bundle";
 // Catalog of the individual, single-tool apps. `playStoreUrl` is left null
 // until each one has its own Android applicationId and Play Store listing
 // (see NOTES.md — package IDs were deliberately not set up yet). Until
-// then, "Get it" buttons show a "Coming soon" state instead of a dead link.
+// then, the "Get" button on each row doesn't link anywhere yet.
 export const PRODUCTS = [
   {
     id: "expenses-manager",
-    name: "Expenses Manager",
+    name: "በጅሮንድ Expenses Manager",
     tagline: "Track cash in and out across businesses and books",
     playStoreUrl: null,
   },
   {
     id: "loan-calculator",
-    name: "Loan Calculator",
+    name: "በጅሮንድ Loan Calculator",
     tagline: "Work out loan payments, interest, and fees",
     playStoreUrl: null,
   },
   {
     id: "budget",
-    name: "Budget",
+    name: "በጅሮንድ Budget",
     tagline: "Plan and track a monthly budget",
     playStoreUrl: null,
   },
   {
     id: "trip-organizer",
-    name: "Trip Organizer",
+    name: "በጅሮንድ Trip Organizer",
     tagline: "Plan trips, budgets, and packing lists",
     playStoreUrl: null,
   },
@@ -49,7 +49,7 @@ export const PRODUCTS = [
 
 export const BUNDLE_PRODUCT = {
   id: "bundle",
-  name: "በጅሮንድ — All-in-One",
+  name: "በጅሮንድ Finances",
   tagline: "Every tool together, no ads",
   playStoreUrl: null,
 };
