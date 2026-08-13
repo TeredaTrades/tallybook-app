@@ -3,6 +3,18 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 11) — [individual/expenses-manager branch] No Home screen; land on business selector
+- Merged in from `individual-base`: cross-business move/copy and Settings > Quick
+  Access (home screen widget + floating icon), same as the bundle — see the `main`
+  entry further below (cont. 9) for the full description.
+- This build's Home tab is now gone entirely (it never had a use for the marketplace
+  link, forex ticker, or financial news anyway, per its original "no Home hub" scope).
+  First launch of a new account goes straight into the "what will you manage?"
+  business-type question if no business exists yet; every launch after that lands
+  directly on the business selector (the Cashbooks screen, which shows the Select
+  Business picker itself for anyone with 2+ businesses) instead of a Home screen.
+  Bottom nav is now Cashbooks / Help / More Apps / Settings.
+
 ## 2026-08-13 (cont. 10) — [individual-base branch] Merged cross-business move/copy & Quick Access
 - Merged in from `main`: cross-business move/copy for the Expenses Manager, and
   Settings > Quick Access (home screen widget + floating icon). See the `main`
