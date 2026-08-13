@@ -3,6 +3,21 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 13) — [individual/expenses-manager branch] CI: build on push, publish APK as a Release
+- The build workflow only auto-triggered on push to `main`/`master`, and there was
+  no way to trigger it for this branch without repo Actions permissions this token
+  doesn't have — so `individual/expenses-manager` (and any future `individual/**`
+  branch) now also builds on every push, same as `main`.
+- The APK is now also published as a GitHub Release asset (tagged
+  `build-<branch>-<run number>`), in addition to the existing Actions-tab artifact.
+  Actions artifacts require being signed into GitHub to download; a Release asset
+  has a plain URL that works without that, which is what makes it possible to grab
+  the APK from here to hand to you directly.
+- Scoped to this branch only for now rather than merged back through
+  `individual-base`/`main`, since it's CI infrastructure rather than an app feature
+  — worth folding into the shared branches later if the team wants every branch to
+  build+release automatically.
+
 ## 2026-08-13 (cont. 12) — [individual/expenses-manager branch] Merged Select Business always-shown & fainter floating icon
 - Merged in from `individual-base`: the Expenses Manager always opens on Select
   Business now, even with only one business saved, and the floating icon (Settings >
