@@ -1,0 +1,214 @@
+/*
+ * Theme system.
+ *
+ * Rather than rewriting every hardcoded Tailwind color class across the app
+ * (bg-white, text-slate-800, bg-teal-700, etc. — thousands of occurrences),
+ * this file defines CSS variables per theme and then re-points the small set
+ * of color utility classes that account for the vast majority of the UI's
+ * surfaces/text/accents at the ones actually used. New screens should keep
+ * using the same slate/teal/amber/sky/rose Tailwind classes as everywhere
+ * else in the app — they'll automatically follow whichever theme is active.
+ *
+ * [data-theme] is set on the app's root wrapper div (and mirrored onto
+ * <html> so the areas outside it, like iOS overscroll edges, match too).
+ */
+
+[data-theme] {
+  background-color: var(--tb-app-bg);
+  color: var(--tb-text);
+}
+
+[data-theme="light"] {
+  --tb-app-bg: #f8fafc;
+  --tb-surface: #ffffff;
+  --tb-surface-alt: #f8fafc;
+  --tb-surface-alt2: #f1f5f9;
+  --tb-border: #e2e8f0;
+  --tb-text: #0f172a;
+  --tb-text-soft: #334155;
+  --tb-text-muted: #64748b;
+  --tb-text-faint: #94a3b8;
+  --tb-text-faint2: #cbd5e1;
+  --tb-primary: #0f766e;
+  --tb-primary-soft: #f0fdfa;
+  --tb-accent2: #b45309;
+  --tb-accent2-soft: #fffbeb;
+  --tb-accent3: #0369a1;
+  --tb-accent3-soft: #f0f9ff;
+  --tb-secondary: #1e293b;
+  --tb-danger: #be123c;
+  --tb-danger-soft: #fff1f2;
+}
+
+[data-theme="dark"] {
+  --tb-app-bg: #0f172a;
+  --tb-surface: #1e293b;
+  --tb-surface-alt: #0f172a;
+  --tb-surface-alt2: #334155;
+  --tb-border: #334155;
+  --tb-text: #f1f5f9;
+  --tb-text-soft: #cbd5e1;
+  --tb-text-muted: #94a3b8;
+  --tb-text-faint: #64748b;
+  --tb-text-faint2: #475569;
+  --tb-primary: #14b8a6;
+  --tb-primary-soft: #134e4a;
+  --tb-accent2: #f59e0b;
+  --tb-accent2-soft: #451a03;
+  --tb-accent3: #38bdf8;
+  --tb-accent3-soft: #0c4a6e;
+  --tb-secondary: #334155;
+  --tb-danger: #fb7185;
+  --tb-danger-soft: #4c0519;
+}
+
+[data-theme="brown-cream"] {
+  --tb-app-bg: #f5ede1;
+  --tb-surface: #fffaf3;
+  --tb-surface-alt: #f0e4d3;
+  --tb-surface-alt2: #e8d8c0;
+  --tb-border: #d8c3a5;
+  --tb-text: #3b2a1e;
+  --tb-text-soft: #5c4433;
+  --tb-text-muted: #8a705a;
+  --tb-text-faint: #b09a82;
+  --tb-text-faint2: #cbb89e;
+  --tb-primary: #7c4a25;
+  --tb-primary-soft: #efe0cb;
+  --tb-accent2: #a86b2d;
+  --tb-accent2-soft: #f3e3cb;
+  --tb-accent3: #6b4f3a;
+  --tb-accent3-soft: #eee0cd;
+  --tb-secondary: #4a3222;
+  --tb-danger: #a3402c;
+  --tb-danger-soft: #f6e3dd;
+}
+
+[data-theme="pink"] {
+  --tb-app-bg: #fdf1f6;
+  --tb-surface: #ffffff;
+  --tb-surface-alt: #fce8f0;
+  --tb-surface-alt2: #fbdce9;
+  --tb-border: #f6c9dc;
+  --tb-text: #4a1930;
+  --tb-text-soft: #7a3153;
+  --tb-text-muted: #a9628a;
+  --tb-text-faint: #cd93b3;
+  --tb-text-faint2: #e6bdd3;
+  --tb-primary: #be185d;
+  --tb-primary-soft: #fce7f3;
+  --tb-accent2: #db2777;
+  --tb-accent2-soft: #fbe4ef;
+  --tb-accent3: #9d174d;
+  --tb-accent3-soft: #fbe4ef;
+  --tb-secondary: #831843;
+  --tb-danger: #be123c;
+  --tb-danger-soft: #ffe4e6;
+}
+
+[data-theme="islamic"] {
+  --tb-app-bg: #f4f8f4;
+  --tb-surface: #ffffff;
+  --tb-surface-alt: #eaf3ea;
+  --tb-surface-alt2: #dcebdc;
+  --tb-border: #c9ddc9;
+  --tb-text: #1a2e1a;
+  --tb-text-soft: #2f4a2f;
+  --tb-text-muted: #5c7a5c;
+  --tb-text-faint: #8fab8f;
+  --tb-text-faint2: #bcd0bc;
+  --tb-primary: #0f6b3f;
+  --tb-primary-soft: #e3f3e9;
+  --tb-accent2: #b8860b;
+  --tb-accent2-soft: #faf1d9;
+  --tb-accent3: #0a5c33;
+  --tb-accent3-soft: #e3f3e9;
+  --tb-secondary: #14432a;
+  --tb-danger: #b3261e;
+  --tb-danger-soft: #fbe4e2;
+}
+
+[data-theme="minimalist"] {
+  --tb-app-bg: #fafafa;
+  --tb-surface: #ffffff;
+  --tb-surface-alt: #f4f4f5;
+  --tb-surface-alt2: #e4e4e7;
+  --tb-border: #e4e4e7;
+  --tb-text: #18181b;
+  --tb-text-soft: #3f3f46;
+  --tb-text-muted: #71717a;
+  --tb-text-faint: #a1a1aa;
+  --tb-text-faint2: #d4d4d8;
+  --tb-primary: #2563eb;
+  --tb-primary-soft: #eff6ff;
+  --tb-accent2: #4b5563;
+  --tb-accent2-soft: #f4f4f5;
+  --tb-accent3: #1d4ed8;
+  --tb-accent3-soft: #eff6ff;
+  --tb-secondary: #27272a;
+  --tb-danger: #dc2626;
+  --tb-danger-soft: #fef2f2;
+}
+
+/* ---- Surfaces ---- */
+[data-theme] .bg-white { background-color: var(--tb-surface) !important; }
+[data-theme] .bg-slate-50 { background-color: var(--tb-surface-alt) !important; }
+[data-theme] .bg-slate-100 { background-color: var(--tb-surface-alt2) !important; }
+
+/* ---- Borders / dividers ---- */
+[data-theme] .border-slate-200,
+[data-theme] .border-slate-300 { border-color: var(--tb-border) !important; }
+[data-theme] .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+[data-theme] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--tb-border) !important; }
+
+/* ---- Text ---- */
+[data-theme] .text-slate-900,
+[data-theme] .text-slate-800 { color: var(--tb-text) !important; }
+[data-theme] .text-slate-700 { color: var(--tb-text-soft) !important; }
+[data-theme] .text-slate-500 { color: var(--tb-text-muted) !important; }
+[data-theme] .text-slate-400 { color: var(--tb-text-faint) !important; }
+[data-theme] .text-slate-300 { color: var(--tb-text-faint2) !important; }
+
+/* ---- Primary (teal) ---- */
+[data-theme] .bg-teal-700,
+[data-theme] .bg-teal-600 { background-color: var(--tb-primary) !important; }
+[data-theme] .bg-teal-50 { background-color: var(--tb-primary-soft) !important; }
+[data-theme] .text-teal-700 { color: var(--tb-primary) !important; }
+[data-theme] .border-teal-300 { border-color: var(--tb-primary) !important; }
+
+/* ---- Secondary accent (amber — Budget, warnings) ---- */
+[data-theme] .bg-amber-700 { background-color: var(--tb-accent2) !important; }
+[data-theme] .bg-amber-50 { background-color: var(--tb-accent2-soft) !important; }
+[data-theme] .text-amber-700,
+[data-theme] .text-amber-800 { color: var(--tb-accent2) !important; }
+
+/* ---- Tertiary accent (sky — Trip Organizer) ---- */
+[data-theme] .bg-sky-700 { background-color: var(--tb-accent3) !important; }
+[data-theme] .bg-sky-50 { background-color: var(--tb-accent3-soft) !important; }
+[data-theme] .text-sky-700 { color: var(--tb-accent3) !important; }
+
+/* ---- Dark neutral (Loan Calculator button, etc.) ---- */
+[data-theme] .bg-slate-800,
+[data-theme] .bg-slate-900 { background-color: var(--tb-secondary) !important; }
+
+/* ---- Danger (rose — delete, over-budget, errors) ---- */
+[data-theme] .bg-rose-700 { background-color: var(--tb-danger) !important; }
+[data-theme] .bg-rose-50 { background-color: var(--tb-danger-soft) !important; }
+[data-theme] .text-rose-500,
+[data-theme] .text-rose-600 { color: var(--tb-danger) !important; }
+
+/* ---- Form controls ----
+ * Many inputs/textareas/selects across the app rely on the browser's native
+ * white background rather than an explicit bg-white class. Without this,
+ * they'd stay white in dark mode (and other dark-ish themes), clashing with
+ * themed text colors. */
+[data-theme] input,
+[data-theme] textarea,
+[data-theme] select {
+  background-color: var(--tb-surface);
+  color: var(--tb-text);
+}
+[data-theme] input::placeholder,
+[data-theme] textarea::placeholder {
+  color: var(--tb-text-faint);
+}

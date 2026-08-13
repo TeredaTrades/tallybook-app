@@ -30,9 +30,6 @@ all share the same underlying OCR/receipt-parsing piece — worth building
 that once and scoping all three together rather than separately.
 
 - Simpler ways to add members
-- Theme support — dark and light, plus some basic color combos (brown and
-  cream, and something pink-based), maybe an Islamic theme or a
-  modern/tech/minimalist skin
 
 ## To change
 -
@@ -45,6 +42,18 @@ that once and scoping all three together rather than separately.
 
 ## Done
 _(move items here once handled, with the date)_
+
+- Theme support: added an Appearance screen (Settings > Appearance) with 6
+  presets — Light (default), Dark, Brown & Cream, Pink, Islamic (green &
+  gold), and Minimalist — selection persists on-device. Implemented via CSS
+  variables + a themed override layer for the app's existing slate/teal/
+  amber/sky/rose color classes, rather than hand-editing colors screen by
+  screen, so new screens automatically pick up whichever theme is active as
+  long as they keep using the same color classes as the rest of the app.
+  Known gap: the expense pie chart's per-category colors are fixed hex
+  values (not theme-aware) since they're generated to be visually distinct
+  from each other rather than to match a palette — left as-is for now
+  (2026-08-13)
 
 - Financial news rows on Home now show a real per-headline image: wired
   up the free, no-signup saurav.tech mirror of NewsAPI.org (business

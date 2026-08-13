@@ -3,6 +3,23 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 5) — Theme support
+- Added an Appearance screen under Settings with 6 theme presets: Light
+  (the existing default look), Dark, Brown & Cream, Pink, Islamic (green &
+  gold), and Minimalist. Tap one to switch instantly; the choice is saved
+  on-device and re-applied on next open.
+- Implemented as a CSS variable layer (`src/theme.css`) that re-points the
+  app's existing color classes (bg-white, text-slate-800, bg-teal-700,
+  bg-amber-700, bg-sky-700, bg-rose-700, form control backgrounds, etc.) to
+  theme-specific values, rather than rewriting colors on every screen
+  individually. This means any current or future screen that keeps using
+  the app's normal slate/teal/amber/sky/rose classes will automatically
+  follow whichever theme is selected, with no per-screen changes needed.
+- Known gap: the expense breakdown pie chart's per-category slice colors
+  are a fixed palette of hex values (chosen for contrast between slices,
+  not tied to the color classes above) — they don't shift with the theme.
+  Left as a known limitation for now rather than in scope for this pass.
+
 ## 2026-08-13 (cont. 4) — Real news headline images
 - The Home screen's Financial News section now shows a real image next to
   each headline instead of the old static 4-link list (Reuters/Bloomberg/

@@ -7,7 +7,7 @@ import {
   Loader2, Inbox, ChevronLeft, PieChart as PieChartIcon, SlidersHorizontal, Camera, Paperclip,
   CheckSquare, CheckCircle2, Circle, ClipboardList, Bell, BellOff, BellRing, Calculator,
   Home, Newspaper, ShoppingBag, Landmark, ExternalLink, RefreshCw, VolumeX,
-  PiggyBank, Plane, MapPin, Luggage
+  PiggyBank, Plane, MapPin, Luggage, Palette
 } from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
 import { Capacitor } from "@capacitor/core";
@@ -554,6 +554,7 @@ export default function TallyBookApp() {
   const [businesses, setBusinesses] = useState([]);
   const [session, setSession] = useState({ activeBusinessId: null, viewingAs: null });
   const [appSettings, setAppSettings] = useState({ categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
+  const [theme, setTheme] = useState("light");
   const [tab, setTab] = useState("home");
   const [stack, setStack] = useState([{ screen: "home" }]);
   const [entriesCache, setEntriesCache] = useState({}); // bookId -> entries
@@ -576,6 +577,8 @@ export default function TallyBookApp() {
       const biz = await storeGet("businesses", []);
       const sess = await storeGet("session", { activeBusinessId: null, viewingAs: null });
       const settings = await storeGet("app-settings", { categories: DEFAULT_CATEGORIES, paymentModes: DEFAULT_PAYMENT_MODES, currency: "$" });
+      const savedTheme = await storeGet("app-theme", "light");
+      setTheme(savedTheme);
       const planned = await storeGet("planned-items", []);
       setAccount(acct);
       setBusinesses(biz);
@@ -627,6 +630,15 @@ export default function TallyBookApp() {
     setBusinesses(next);
     await storeSet("businesses", next);
   }, []);
+  const persistTheme = useCallback(async (next) => {
+    setTheme(next);
+    await storeSet("app-theme", next);
+  }, []);
+  // Mirror the theme onto <html> too, so backgrounds outside the app's root wrapper
+  // (e.g. iOS overscroll/bounce edges) match instead of flashing white/black.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
   const persistSession = useCallback(async (next) => {
     setSession(next);
     await storeSet("session", next);
@@ -721,7 +733,7 @@ export default function TallyBookApp() {
 
   if (loading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-white">
+      <div data-theme={theme} className="w-full h-screen flex items-center justify-center bg-white">
         <Loader2 className="animate-spin text-teal-700" size={28} />
       </div>
     );
@@ -730,6 +742,7 @@ export default function TallyBookApp() {
   if (!account?.welcomed) {
     return (
       <WelcomeScreen
+        theme={theme}
         onDone={async (acct) => {
           await storeSet("account", acct);
           setAccount(acct);
@@ -742,6 +755,7 @@ export default function TallyBookApp() {
   if (!unlocked) {
     return (
       <WelcomeBackScreen
+        theme={theme}
         account={account}
         onUnlock={() => setUnlocked(true)}
         onResetAccount={async () => {
@@ -759,12 +773,13 @@ export default function TallyBookApp() {
     createBusiness, createBook,
     push, pop, resetTo, stack, top,
     plannedItems, persistPlanned, notifPermission, requestNotifPermission,
+    theme, persistTheme,
   };
 
   const pendingPlannedCount = plannedItems.filter((p) => !p.done).length;
 
   return (
-    <div className="w-full h-screen bg-slate-50 overflow-hidden flex flex-col relative">
+    <div data-theme={theme} className="w-full h-screen bg-slate-50 overflow-hidden flex flex-col relative">
       <div className="flex-1 overflow-y-auto flex flex-col">
         <Router ctx={ctx} tab={tab} setTab={setTab} />
       </div>
@@ -784,7 +799,7 @@ export default function TallyBookApp() {
 // No backend here — this is a local-only name+PIN gate stored on-device (@capacitor/preferences),
 // not real authentication. It's meant to keep the app from opening straight to someone else's data
 // if they pick up the phone, not to protect against anything more serious than that.
-function WelcomeScreen({ onDone }) {
+function WelcomeScreen({ onDone, theme }) {
   const [mode, setMode] = useState(null); // null | "create"
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
@@ -799,7 +814,7 @@ function WelcomeScreen({ onDone }) {
   };
 
   return (
-    <div className="w-full h-screen bg-white overflow-hidden flex flex-col">
+    <div data-theme={theme} className="w-full h-screen bg-white overflow-hidden flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
           <BookMarked size={36} className="text-teal-700" />
@@ -837,7 +852,7 @@ function WelcomeScreen({ onDone }) {
   );
 }
 
-function WelcomeBackScreen({ account, onUnlock, onResetAccount }) {
+function WelcomeBackScreen({ account, onUnlock, onResetAccount, theme }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
 
@@ -853,7 +868,7 @@ function WelcomeBackScreen({ account, onUnlock, onResetAccount }) {
   };
 
   return (
-    <div className="w-full h-screen bg-white overflow-hidden flex flex-col">
+    <div data-theme={theme} className="w-full h-screen bg-white overflow-hidden flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-20 h-20 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-8">
           <BookMarked size={36} className="text-teal-700" />
@@ -1148,6 +1163,7 @@ function Router({ ctx, tab, setTab }) {
     case "tripOrganizer": return <TripOrganizerScreen ctx={ctx} />;
     case "tripDetail": return <TripDetailScreen ctx={ctx} tripId={top.tripId} />;
     case "reminders": return <RemindersScreen ctx={ctx} />;
+    case "theme": return <ThemeScreen ctx={ctx} />;
     case "profile": return <ProfileScreen ctx={ctx} />;
     case "about": return <AboutScreen ctx={ctx} />;
     case "switchBusiness": return <SwitchBusinessScreen ctx={ctx} />;
@@ -2415,6 +2431,42 @@ function ChartsScreen({ ctx, bookId }) {
 }
 
 // ---------- Settings tab ----------
+const THEME_OPTIONS = [
+  { id: "light", label: "Light", sub: "The default look", swatches: ["#f8fafc", "#0f766e", "#b45309"] },
+  { id: "dark", label: "Dark", sub: "Easier on the eyes at night", swatches: ["#0f172a", "#14b8a6", "#f59e0b"] },
+  { id: "brown-cream", label: "Brown & Cream", sub: "Warm, earthy tones", swatches: ["#f5ede1", "#7c4a25", "#a86b2d"] },
+  { id: "pink", label: "Pink", sub: "Soft rose tones", swatches: ["#fdf1f6", "#be185d", "#db2777"] },
+  { id: "islamic", label: "Islamic", sub: "Green & gold", swatches: ["#f4f8f4", "#0f6b3f", "#b8860b"] },
+  { id: "minimalist", label: "Minimalist", sub: "Clean, modern & monochrome", swatches: ["#fafafa", "#2563eb", "#18181b"] },
+];
+
+function ThemeScreen({ ctx }) {
+  const { pop, theme, persistTheme } = ctx;
+  return (
+    <div className="flex-1 flex flex-col">
+      <TopHeader title="Appearance" subtitle="Pick a theme for the app" onBack={pop} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+        {THEME_OPTIONS.map((t) => {
+          const active = theme === t.id;
+          return (
+            <button key={t.id} onClick={() => persistTheme(t.id)}
+              className={`w-full flex items-center gap-3 bg-white border rounded-xl p-4 text-left ${active ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200"}`}>
+              <div className="flex shrink-0 rounded-lg overflow-hidden border border-slate-200 w-10 h-10">
+                {t.swatches.map((c, i) => <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-900 text-sm">{t.label}</div>
+                <div className="text-xs text-slate-500">{t.sub}</div>
+              </div>
+              {active ? <CheckCircle2 size={20} className="text-teal-700 shrink-0" /> : <Circle size={20} className="text-slate-200 shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SettingsScreen({ ctx }) {
   const { push } = ctx;
   const Item = ({ icon: Icon, title, sub, onClick }) => (
@@ -2437,6 +2489,7 @@ function SettingsScreen({ ctx }) {
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />
           <Item icon={Bell} title="Reminders" sub="Get notified about things to buy or pay for" onClick={() => push("reminders")} />
+          <Item icon={Palette} title="Appearance" sub="Theme & color" onClick={() => push("theme")} />
           <Item icon={Eye} title="Your Profile" sub="Name, mobile number, email" onClick={() => push("profile")} />
           <Item icon={Info} title="About በጅሮንድ" sub="Privacy policy, T&C, About us" onClick={() => push("about")} />
         </div>
