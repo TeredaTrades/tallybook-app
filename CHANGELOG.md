@@ -3,6 +3,15 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 8) — [individual-base branch] Business picker on login
+- Ported the same fix already on `main`: the Expenses Manager now shows the
+  Select Business picker each time a returning user with 2+ businesses logs
+  back in, instead of silently reopening whichever business was last active.
+  Picking (or dismissing) the picker only prompts once per session; users
+  with 0 or 1 business are unaffected and go straight in as before. This
+  applies to every `individual/*` product branch merged forward from here,
+  including `individual/expenses-manager`.
+
 ## 2026-08-13 (cont. 7) — [individual-base branch] Product split scaffold
 This branch (`individual-base`) is the shared starting point for the
 single-tool, ad-supported apps (`individual/expenses-manager`,
