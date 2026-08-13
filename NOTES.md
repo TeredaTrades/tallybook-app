@@ -45,6 +45,11 @@ that once and scoping all three together rather than separately.
 ## Done
 _(move items here once handled, with the date)_
 
+- Expenses Manager now always opens on Select Business, even with just one
+  business saved, instead of only showing that screen at 2+ businesses.
+  Applies to both the bundle app and the standalone Expenses Manager build.
+  Floating icon (Quick Access) made smaller and semi-transparent so it's
+  less obtrusive over other apps (2026-08-13)
 - Removed the `VITE_APP_VARIANT`/`.env.standalone` build scaffold that had
   been added directly to `main` — it duplicated the existing `individual-
   base`/`individual/*` branch structure that's the real mechanism for

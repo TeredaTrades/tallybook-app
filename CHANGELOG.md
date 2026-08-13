@@ -3,6 +3,19 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 10) — Business picker always shown, smaller/fainter floating icon
+- Expenses Manager (Cashbooks) now always opens on the "Select Business" screen on
+  a fresh session, even for a user with only one business — previously that screen
+  only showed when there were 2+ businesses, and a single-business user was dropped
+  straight into their books. The "Select Business" screen's copy adjusts depending on
+  whether there's one business or several. This applies to both the full bundle app
+  and the standalone Expenses Manager build, since both share the same underlying
+  screen. A user with 0 businesses is unaffected — they still land on "what will you
+  manage?" to create their first one, since there's nothing yet to pick between.
+- The floating icon (Settings > Quick Access) is now smaller (40dp, was 56dp) and
+  semi-transparent (55% opacity) so it sits more quietly over whatever app it's
+  floating on top of, rather than fully solid at a larger size.
+
 ## 2026-08-13 (cont. 9) — Cross-business move/copy, Quick Access widget & floating icon
 - Move/copy an entry (or a multi-select batch) in the Expenses Manager can now target
   a book in *any* of the user's businesses, not just the currently active one. The
