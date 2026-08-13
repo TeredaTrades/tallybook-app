@@ -3,6 +3,14 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-13 (cont. 14) — [individual/expenses-manager branch] Merged More Apps branding, "Get" buttons, trading card
+- Merged in from `individual-base`: More Apps screen title, product names, and
+  "Get" buttons now carry the በጅሮንድ branding, and the "Want to learn about
+  trading?" card was added to this screen — see the `individual-base` entry
+  below (cont. 12) for the full description. Applies here unchanged, and is
+  especially relevant on this branch since it has no Home screen, so More Apps
+  is this build's only route to the trading card.
+
 ## 2026-08-13 (cont. 13) — [individual/expenses-manager branch] CI: build on push, publish APK as a Release
 - The build workflow only auto-triggered on push to `main`/`master`, and there was
   no way to trigger it for this branch without repo Actions permissions this token
@@ -35,6 +43,25 @@ record without needing to scroll back through chat history.
   directly on the business selector (the Cashbooks screen, which shows the Select
   Business picker itself for anyone with 1+ businesses) instead of a Home screen.
   Bottom nav is now Cashbooks / Help / More Apps / Settings.
+
+## 2026-08-13 (cont. 12) — More Apps branding, "Get" buttons, trading card
+- More Apps screen title changed from "More Apps" to "More በጅሮንድ Apps".
+- Every product name shown on that screen now carries the በጅሮንድ prefix:
+  the bundle card is now "በጅሮንድ Finances" (was "በጅሮንድ — All-in-One"), and
+  the four single-tool products are "በጅሮንድ Expenses Manager", "በጅሮንድ Loan
+  Calculator", "በጅሮንድ Budget", and "በጅሮንድ Trip Organizer".
+- The grayed-out "Coming soon" pill (shown when a product has no
+  `playStoreUrl` yet) is now an actively-styled "Get" button instead —
+  doesn't link anywhere yet since the Play Store URLs still aren't set up
+  (see NOTES.md), but no longer looks disabled. The existing linked button
+  is now labeled "Get" too (was "Get it"), so both states read the same.
+- Added the "Want to learn about trading?" placeholder card (not linked
+  yet — same as the one on Home) to the bottom of the More Apps screen too,
+  since the Expenses Manager standalone build has no Home screen and
+  otherwise had no way to reach it.
+- Made on `individual-base` and merged into all four `individual/*` product
+  branches. `main` is unaffected — the bundle build's "more" tab is the
+  Import screen, not this one.
 
 ## 2026-08-13 (cont. 11) — [individual-base branch] Merged Select Business always-shown & fainter floating icon
 - Merged in from `main`: the Expenses Manager always opens on Select Business now,
