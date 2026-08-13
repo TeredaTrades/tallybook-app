@@ -45,6 +45,14 @@ that once and scoping all three together rather than separately.
 ## Done
 _(move items here once handled, with the date)_
 
+- Fixed entries not re-sorting after a date edit (Time field's free-text format
+  could silently break the sort — now a native time picker), added a delete
+  option with Yes/No confirm next to Move/Copy (and to the existing edit-screen
+  delete), entry list rows now show the remark as the bold headline instead of
+  the contact name, and the hardware back button now navigates one screen at a
+  time (closing open sheets/select-mode first) instead of immediately minimizing
+  the app (2026-08-14)
+
 - Expenses Manager now always opens on Select Business, even with just one
   business saved, instead of only showing that screen at 2+ businesses.
   Applies to both the bundle app and the standalone Expenses Manager build.

@@ -3,6 +3,35 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-14 — Entry sort/time fix, delete confirmation, remark-first list, real back button
+- **Entries not re-sorting after a date edit**: found the actual cause — the entry
+  Time field was free text, so editing it (or an existing entry's original time)
+  could produce a string the sort logic couldn't parse, which silently made that
+  entry sort as midnight regardless of its real time, making edited entries look
+  "stuck." Time is now a native time picker (always a valid value), and the sort
+  parser accepts both the new format and every legacy free-typed value already
+  saved, so nothing existing breaks. Applies everywhere a time is shown (entry
+  list, entry detail, CSV export).
+- **Delete confirmation**: a Delete button now sits next to Move/Copy in the
+  multi-select action bar (long-press or tap the checkmark to select, same as
+  Move/Copy), and deleting (from there or from the existing Edit Entry trash icon)
+  now asks "Delete this entry? / Yes, Delete / No" before removing anything.
+- **Entry list row**: the bold headline now shows the remark instead of the
+  contact/sender name — useful when several transactions go to/from the same
+  person and the remark is what tells them apart. Falls back to contact/category
+  only when no remark was entered. The color and arrow already convey Cash In vs.
+  Cash Out, so that label is no longer duplicated in the row text either.
+- **Hardware back button**: previously any back-button press minimized the app
+  immediately, regardless of how deep you were. It now closes an open sheet/
+  select-mode first, then steps back through the screen stack one screen at a
+  time, then falls back to Home, and only exits the app once there's truly
+  nowhere left to go back to. Added the `@capacitor/app` plugin for this (new
+  native dependency — first run after pulling this needs `npx cap sync android`,
+  already done here).
+- All four fixes are in the shared `BookScreen`/`AddEntryScreen`/root-navigation
+  code, so they apply to both the full bundle and the standalone Expenses Manager
+  build once ported to `individual-base`.
+
 ## 2026-08-13 (cont. 10) — Business picker always shown, smaller/fainter floating icon
 - Expenses Manager (Cashbooks) now always opens on the "Select Business" screen on
   a fresh session, even for a user with only one business — previously that screen

@@ -15,6 +15,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { App as CapacitorApp } from "@capacitor/app";
 import jsPDF from "jspdf";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -35,11 +36,39 @@ const BOOK_TEMPLATES = ["Sales Ledger", "Bank Reconciliation", "Shared Cashbook"
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const nowTimeStr = () => {
+// 24-hour "HH:MM" — what the native <input type="time"> picker needs/returns.
+const nowTimeStr24 = () => {
   const d = new Date();
-  let h = d.getHours(); const m = d.getMinutes();
-  const ampm = h >= 12 ? "PM" : "AM"; h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")} ${ampm}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+// Normalizes a stored time value (legacy free-typed "9:00 PM" strings, or the current
+// 24h "HH:MM" from the native time picker) into "HH:MM" for the <input type="time">
+// field's value. Anything unrecognized falls back to the current time rather than
+// leaving the picker blank.
+const to24h = (t) => {
+  const raw = (t || "").trim();
+  const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (m24) return `${m24[1].padStart(2, "0")}:${m24[2]}`;
+  const mAmPm = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec(raw);
+  if (mAmPm) {
+    let h = parseInt(mAmPm[1], 10) % 12;
+    if (/PM/i.test(mAmPm[3])) h += 12;
+    return `${String(h).padStart(2, "0")}:${mAmPm[2]}`;
+  }
+  return nowTimeStr24();
+};
+// Formats a stored time value (either format) as "h:mm AM/PM" for display.
+const fmtTime12 = (t) => {
+  const raw = (t || "").trim();
+  if (!raw) return "";
+  const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (m24) {
+    let h = parseInt(m24[1], 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${m24[2]} ${ampm}`;
+  }
+  return raw; // already "h:mm AM/PM"
 };
 const fmtDate = (iso) => {
   const d = new Date(iso + "T00:00:00");
@@ -48,11 +77,15 @@ const fmtDate = (iso) => {
 // Turns an entry's date + "9:00 PM"-style time into a real, sortable Date.
 const entryDateTime = (e) => {
   const d = new Date((e.date || todayStr()) + "T00:00:00");
-  const m = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec((e.time || "").trim());
+  const raw = (e.time || "").trim();
+  const m = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec(raw);
   if (m) {
     let h = parseInt(m[1], 10) % 12;
     if (/PM/i.test(m[3])) h += 12;
     d.setHours(h, parseInt(m[2], 10), 0, 0);
+  } else {
+    const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+    if (m24) d.setHours(parseInt(m24[1], 10), parseInt(m24[2], 10), 0, 0);
   }
   return d;
 };
@@ -602,6 +635,10 @@ export default function TallyBookApp() {
   const [notifPermission, setNotifPermission] = useState("unknown");
   const [inputFocused, setInputFocused] = useState(false); // hides the floating list button while typing so it can't sit on top of a Save button
   const [activeAlarm, setActiveAlarm] = useState(null); // reminder popup payload, shown on notification receipt/tap
+  // Lets whichever screen is on top intercept the hardware back button first (to close
+  // its own open modal/select-mode instead of leaving the screen). Set by screens via
+  // ctx.setBackHandler; the handler returns true if it consumed the press.
+  const backHandlerRef = useRef(null);
 
   const top = stack[stack.length - 1];
   const push = (screen, extra = {}) => setStack((s) => [...s, { screen, ...extra }]);
@@ -720,6 +757,23 @@ export default function TallyBookApp() {
     setActiveAlarm(null);
   }, [activeAlarm, persistPlanned]);
 
+  // Hardware back button: close whatever's on top first (a screen's own overlay, then
+  // the global planned-items sidebar / reminder popup), otherwise step back through the
+  // in-app navigation stack one screen at a time, then fall back to the Home tab, and
+  // only exit the app once there's truly nowhere left to go back to.
+  useEffect(() => {
+    let handle;
+    CapacitorApp.addListener("backButton", () => {
+      if (backHandlerRef.current && backHandlerRef.current()) return;
+      if (plannedSidebarOpen) { setPlannedSidebarOpen(false); return; }
+      if (activeAlarm) { dismissAlarm(); return; }
+      if (stack.length > 1) { pop(); return; }
+      if (tab !== "home") { setTab("home"); resetTo("home"); return; }
+      CapacitorApp.exitApp();
+    }).then((h) => { handle = h; });
+    return () => { if (handle) handle.remove(); };
+  }, [plannedSidebarOpen, activeAlarm, stack, tab, dismissAlarm]);
+
   const activeBusiness = businesses.find((b) => b.id === session.activeBusinessId) || null;
 
   const getEntries = useCallback(async (bookId) => {
@@ -822,6 +876,7 @@ export default function TallyBookApp() {
     push, pop, resetTo, stack, top,
     plannedItems, persistPlanned, notifPermission, requestNotifPermission,
     theme, persistTheme,
+    setBackHandler: (fn) => { backHandlerRef.current = fn; },
   };
 
   const pendingPlannedCount = plannedItems.filter((p) => !p.done).length;
@@ -1446,16 +1501,29 @@ function SwitchBusinessScreen({ ctx, embedded, onDone }) {
 
 // ---------- Book screen ----------
 function BookScreen({ ctx, bookId }) {
-  const { activeBusiness, businesses, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity } = ctx;
+  const { activeBusiness, businesses, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity, setBackHandler } = ctx;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const [entries, setEntries] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [moveCopyEntries, setMoveCopyEntries] = useState(null); // array of entries, or null
+  const [deleteConfirmEntries, setDeleteConfirmEntries] = useState(null); // array of entries, or null
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => { getEntries(bookId).then(setEntries); }, [bookId]);
+
+  // Let the hardware back button close whichever overlay is open (confirm prompt,
+  // move/copy sheet, select mode) one step at a time instead of leaving the screen.
+  useEffect(() => {
+    setBackHandler?.(() => {
+      if (deleteConfirmEntries) { setDeleteConfirmEntries(null); return true; }
+      if (moveCopyEntries) { setMoveCopyEntries(null); return true; }
+      if (selectMode) { setSelectMode(false); setSelectedIds(new Set()); return true; }
+      return false;
+    });
+    return () => setBackHandler?.(null);
+  }, [deleteConfirmEntries, moveCopyEntries, selectMode, setBackHandler]);
 
   if (!book) return <EmptyState icon={BookMarked} title="Book not found" />;
 
@@ -1515,6 +1583,19 @@ function BookScreen({ ctx, bookId }) {
       await logActivity(targetBookId, `${viewer.name} copied ${countLabel} in from ${book?.name}`);
     }
     setMoveCopyEntries(null);
+    exitSelectMode();
+  };
+
+  const doDeleteSelected = async () => {
+    const selected = deleteConfirmEntries;
+    if (!selected || selected.length === 0) return;
+    const selectedIdSet = new Set(selected.map((e) => e.id));
+    const es = await getEntries(bookId);
+    const next = es.filter((e) => !selectedIdSet.has(e.id));
+    await saveEntries(bookId, next);
+    await logActivity(bookId, `${viewer.name} deleted ${selected.length === 1 ? "an entry" : `${selected.length} entries`}`);
+    setEntries(next);
+    setDeleteConfirmEntries(null);
     exitSelectMode();
   };
 
@@ -1633,6 +1714,12 @@ function BookScreen({ ctx, bookId }) {
           </button>
           <button
             disabled={selectedIds.size === 0}
+            onClick={() => setDeleteConfirmEntries((entries || []).filter((e) => selectedIds.has(e.id)))}
+            className="px-4 py-2.5 rounded-xl font-semibold border border-rose-200 text-rose-700 disabled:opacity-40">
+            <Trash2 size={18} />
+          </button>
+          <button
+            disabled={selectedIds.size === 0}
             onClick={() => setMoveCopyEntries((entries || []).filter((e) => selectedIds.has(e.id)))}
             className="flex-1 flex items-center justify-center gap-1 bg-teal-700 text-white py-2.5 rounded-xl font-semibold disabled:opacity-40">
             <ArrowRightLeft size={18} /> Move / Copy {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
@@ -1654,6 +1741,14 @@ function BookScreen({ ctx, bookId }) {
       {moveCopyEntries && (
         <MoveCopyModal entries={moveCopyEntries} otherBooks={otherBooks} cur={cur} activeBusinessId={activeBusiness?.id}
           onClose={() => setMoveCopyEntries(null)} onAction={doMoveOrCopy} />
+      )}
+
+      {deleteConfirmEntries && (
+        <ConfirmModal
+          title={deleteConfirmEntries.length === 1 ? "Delete this entry?" : `Delete ${deleteConfirmEntries.length} entries?`}
+          message="This can't be undone."
+          confirmLabel="Yes, Delete" cancelLabel="No"
+          onCancel={() => setDeleteConfirmEntries(null)} onConfirm={doDeleteSelected} />
       )}
     </div>
   );
@@ -1687,11 +1782,10 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium text-slate-900 truncate flex items-center gap-1.5">
-          {e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
+          {e.remark || e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
           {e.receipt && <Paperclip size={12} className="text-slate-400 shrink-0" />}
         </div>
-        <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
-        {e.remark && <div className="text-xs text-slate-400 truncate italic mt-0.5">"{e.remark}"</div>}
+        <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {fmtTime12(e.time)} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
       </div>
       <div className="text-right shrink-0">
         <div className={`font-semibold ${e.type === "in" ? "text-emerald-700" : "text-rose-700"}`}>
@@ -1700,6 +1794,23 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
         <div className="text-[11px] text-slate-400 mt-0.5">Bal {cur}{balanceText}</div>
       </div>
     </button>
+  );
+}
+
+// Simple Yes/No confirmation prompt — used before any destructive action (deleting
+// entries) so an accidental tap doesn't lose data.
+function ConfirmModal({ title, message, confirmLabel = "Yes", cancelLabel = "No", danger = true, onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm bg-white rounded-2xl p-5" onClick={(ev) => ev.stopPropagation()}>
+        <div className="font-semibold text-slate-900 text-base">{title}</div>
+        {message && <div className="text-sm text-slate-500 mt-1.5">{message}</div>}
+        <div className="flex gap-2 mt-5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl font-semibold border border-slate-300 text-slate-600">{cancelLabel}</button>
+          <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-semibold text-white ${danger ? "bg-rose-700" : "bg-teal-700"}`}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1824,7 +1935,7 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
           )}
           <div className="px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-slate-500">Date</span>
-            <span className="text-sm font-medium text-slate-800">{fmtDate(entry.date)} · {entry.time}</span>
+            <span className="text-sm font-medium text-slate-800">{fmtDate(entry.date)} · {fmtTime12(entry.time)}</span>
           </div>
         </div>
 
@@ -1860,15 +1971,24 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
 
 // ---------- Add / Edit entry ----------
 function AddEntryScreen({ ctx, bookId, type, editEntry }) {
-  const { pop, getEntries, saveEntries, appSettings, logActivity, viewer, activeBusiness } = ctx;
+  const { pop, getEntries, saveEntries, appSettings, logActivity, viewer, activeBusiness, setBackHandler } = ctx;
   const isEdit = !!editEntry;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const bookCur = bookCurrency(book, appSettings);
-  const [form, setForm] = useState(editEntry || {
-    type: type || "in", date: todayStr(), time: nowTimeStr(), amount: "", contact: "", remark: "", category: "", paymentMode: "Cash", receipt: null,
-  });
+  const [form, setForm] = useState(() => editEntry
+    ? { ...editEntry, time: to24h(editEntry.time) }
+    : { type: type || "in", date: todayStr(), time: nowTimeStr24(), amount: "", contact: "", remark: "", category: "", paymentMode: "Cash", receipt: null });
   const [showMoreModes, setShowMoreModes] = useState(false);
   const [contacts, setContacts] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setBackHandler?.(() => {
+      if (confirmDelete) { setConfirmDelete(false); return true; }
+      return false;
+    });
+    return () => setBackHandler?.(null);
+  }, [confirmDelete, setBackHandler]);
 
   const onReceiptChange = (e) => {
     const file = e.target.files?.[0];
@@ -1898,7 +2018,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
     }
     await saveEntries(bookId, next);
     if (addAnother) {
-      setForm({ type: form.type, date: form.date, time: nowTimeStr(), amount: "", contact: "", remark: "", category: "", paymentMode: form.paymentMode, receipt: null });
+      setForm({ type: form.type, date: form.date, time: nowTimeStr24(), amount: "", contact: "", remark: "", category: "", paymentMode: form.paymentMode, receipt: null });
     } else {
       pop();
     }
@@ -1918,7 +2038,12 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
-        right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
+        right={isEdit ? <button onClick={() => setConfirmDelete(true)} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
+      {confirmDelete && (
+        <ConfirmModal title="Delete this entry?" message="This can't be undone."
+          confirmLabel="Yes, Delete" cancelLabel="No"
+          onCancel={() => setConfirmDelete(false)} onConfirm={deleteEntry} />
+      )}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isEdit && (
           <div>
@@ -1944,7 +2069,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
           </label>
           <label className="flex-1">
             <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time</div>
-            <input type="text" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
+            <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </label>
         </div>
@@ -2383,7 +2508,7 @@ function ReportViewScreen({ ctx, bookId, filters }) {
     let rows = [];
     if (filters.reportType === "all") {
       rows.push(["Date", "Time", "Type", "Amount", "Contact", "Category", "Payment Mode", "Remark", "Added By"]);
-      filtered.forEach(e => rows.push([e.date, e.time, e.type === "in" ? "Cash In" : "Cash Out", e.amount, e.contact, e.category, e.paymentMode, e.remark, e.addedBy || "You"]));
+      filtered.forEach(e => rows.push([e.date, fmtTime12(e.time), e.type === "in" ? "Cash In" : "Cash Out", e.amount, e.contact, e.category, e.paymentMode, e.remark, e.addedBy || "You"]));
     } else if (filters.reportType === "category") {
       rows.push(["Category", "Total In", "Total Out"]);
       Object.entries(categorySummary).forEach(([k, v]) => rows.push([k, v.in || 0, v.out || 0]));
