@@ -3,7 +3,14 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
-## 2026-08-13 (cont. 8) — [individual-base branch] Business picker on login
+## 2026-08-13 (cont. 10) — [individual-base branch] Merged cross-business move/copy & Quick Access
+- Merged in from `main`: cross-business move/copy for the Expenses Manager, and
+  Settings > Quick Access (home screen widget + floating icon). See the `main`
+  entry below (cont. 9) for the full description — applies here unchanged since
+  none of it is bundle-specific, and carries forward into every `individual/*`
+  product branch merged from this one, including `individual/expenses-manager`.
+
+## 2026-08-13 (cont. 9) — [individual-base branch] Business picker on login
 - Ported the same fix already on `main`: the Expenses Manager now shows the
   Select Business picker each time a returning user with 2+ businesses logs
   back in, instead of silently reopening whichever business was last active.
@@ -12,7 +19,7 @@ record without needing to scroll back through chat history.
   applies to every `individual/*` product branch merged forward from here,
   including `individual/expenses-manager`.
 
-## 2026-08-13 (cont. 7) — [individual-base branch] Product split scaffold
+## 2026-08-13 (cont. 8) — [individual-base branch] Product split scaffold
 This branch (`individual-base`) is the shared starting point for the
 single-tool, ad-supported apps (`individual/expenses-manager`,
 `individual/loan-calculator`, `individual/budget`, `individual/trip-organizer`).
@@ -43,6 +50,75 @@ overall plan.
   doesn't persist anything between sessions.
 - Ads were deliberately left out of this pass (network not decided yet —
   see NOTES.md).
+
+## 2026-08-13 (cont. 9) — [main branch] Cross-business move/copy, Quick Access widget & floating icon
+- Move/copy an entry (or a multi-select batch) in the Expenses Manager can now target
+  a book in *any* of the user's businesses, not just the currently active one. The
+  Move/Copy sheet groups target books by business (active business first, unlabeled;
+  every other business under its own header) so it's always clear which business a
+  book belongs to before sending money into it. When a move/copy crosses businesses,
+  the entry's "transferred from" stamp includes the source business name for clarity.
+- Added Settings > Quick Access with two opt-in ways to reach the Expenses Manager
+  without opening the app first:
+  - **Home screen widget** — a small tile showing the net balance across every
+    business; tapping it opens the app. "Add widget to Home screen" uses
+    `AppWidgetManager.requestPinAppWidget` where supported (Android 8+), otherwise
+    shows manual long-press-to-add instructions. The balance is pushed from the app
+    (after every entry save, and on launch) into a small native widget provider —
+    the widget itself doesn't read app data directly.
+  - **Floating icon** — a small draggable bubble that floats over other apps and
+    opens TallyBook on tap; drag to reposition, tap (without dragging) to open.
+    Requires the "display over other apps" permission — the toggle sends the user to
+    system Settings to grant it once, then starts/stops a foreground service that
+    hosts the bubble. A low-priority "TallyBook floating icon is on" notification is
+    required by Android for any service that outlives the app being open, and doubles
+    as a quick way back to Settings to turn it off.
+  - Implemented via a small app-embedded (not published) Capacitor plugin
+    (`TallyWidgetPlugin`) plus `ExpensesWidgetProvider` (widget) and `BubbleService`
+    (floating icon) — new Android permissions: `SYSTEM_ALERT_WINDOW`,
+    `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` (none requested until the
+    user opts in from Quick Access).
+  - Known gap: this couldn't be verified on a physical device or emulator from here —
+    only that the web bundle builds and `npx cap sync android` completes cleanly. The
+    actual native compile is validated by the GitHub Actions build; if the floating
+    icon behaves oddly on a given OEM's Android build, that's the first thing to check.
+
+## 2026-08-13 (cont. 8) — [main branch] Clean up misplaced standalone-build scaffold
+- The previous entry below added a `VITE_APP_VARIANT`/`.env.standalone`
+  build-variant scaffold directly on `main` to produce a standalone
+  Expenses Manager build. That duplicated the branch structure that
+  already exists for this (`individual-base` and the `individual/*`
+  product branches, differentiated by `src/appConfig.js`), so it's been
+  removed from `main` — `npm run build:standalone`, `.env.standalone`,
+  `capacitor.config.standalone.json`, and the `IS_STANDALONE_EXPENSES`
+  switch in `App.jsx` are gone. `main` now only builds the full bundle
+  again, same as before that scaffold was added.
+- The actual business-picker-on-login fix (below) is unaffected and stays
+  on `main`. The same fix has also been ported onto `individual-base` and
+  merged into `individual/expenses-manager`, so the real standalone
+  Expenses Manager app (built from that branch) gets it too.
+
+## 2026-08-13 (cont. 7) — [main branch] Business picker on login, standalone Expenses Manager APK
+- Fixed Expenses Manager (Cashbooks) so that a returning user with more than
+  one business now lands on the "Select Business" picker each time they log
+  back in (after the Welcome back PIN screen), instead of being silently
+  dropped straight into whichever business happened to be active last
+  session. Picking a business (or dismissing with the X, which keeps the
+  previous one) only asks once per session — navigating between tabs
+  afterward doesn't re-prompt. Users with 0 or 1 business are unaffected and
+  go straight in as before.
+- Added a second, standalone build of just the Expenses Manager: Welcome/PIN,
+  business picker, and books/entries only — no Home hub, and therefore no
+  Loan Calculator, Budget, Trip Organizer, forex ticker, or financial news
+  (Home is their only entry point, so removing it drops them too). Built via
+  `npm run build:standalone` (new Vite mode, `VITE_APP_VARIANT=standalone-
+  expenses`) into its own `dist-standalone` folder, packaged as its own APK
+  (`com.teredatrades.tallybook.expenses`, labeled "TallyBook Expenses" on the
+  Android launcher so it can be installed side by side with the full app).
+  The GitHub Actions workflow now builds both APKs on every push and attaches
+  them to a new GitHub Release for that run (in addition to the existing
+  Actions-tab artifacts), so both are downloadable without needing a
+  workflow re-run per variant.
 
 ## 2026-08-13 (cont. 6) — Quick toggle, pattern themes, holiday themes
 - Added a light/dark quick-toggle button (sun/moon icon) to the Home screen
