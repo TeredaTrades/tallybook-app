@@ -75,6 +75,13 @@ _(move items here once handled, with the date)_
   all `individual/*` product apps get it too: returning user with 2+
   businesses lands on Select Business again instead of auto-continuing in
   the last-active one (2026-08-13)
+- Removed the `VITE_APP_VARIANT`/`.env.standalone` build scaffold that had
+  been added directly to `main` — it duplicated the existing `individual-
+  base`/`individual/*` branch structure that's the real mechanism for
+  standalone product apps. The standalone Expenses Manager app is built
+  from `individual/expenses-manager` instead (2026-08-13)
+- Merged cross-business move/copy and the Quick Access home screen widget /
+  floating icon in from `main` (2026-08-13)
 
 - Light/dark quick-toggle button added to Home's header; Appearance screen
   regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;
