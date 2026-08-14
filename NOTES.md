@@ -71,6 +71,13 @@ via a normal merge from `individual-base`.
 ## Done
 _(move items here once handled, with the date)_
 
+- Fixed entries not re-sorting after a date edit (Time field's free-text format
+  could silently break the sort — now a native time picker), added a delete
+  option with Yes/No confirm next to Move/Copy (and to the existing edit-screen
+  delete), entry list rows now show the remark as the bold headline instead of
+  the contact name, and the hardware back button now navigates one screen at a
+  time (closing open sheets/select-mode first) instead of immediately minimizing
+  the app (2026-08-14)
 - Ported the business-picker-on-login fix from `main` onto this branch, so
   all `individual/*` product apps get it too: returning user with 2+
   businesses lands on Select Business again instead of auto-continuing in
