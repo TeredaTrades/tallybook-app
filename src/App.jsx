@@ -3108,7 +3108,7 @@ function SettingsScreen({ ctx }) {
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={Users} title="Business Team" sub="Add, remove or change role" onClick={() => push("businessTeam")} />
-          <Item icon={ArrowRightLeft} title="Move Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
+          <Item icon={ArrowRightLeft} title="Move & Copy Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
           <Item icon={Building2} title="Business Settings" sub="Settings specific to this business" onClick={() => push("businessSettings")} />
         </div>
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
@@ -3187,39 +3187,64 @@ function BusinessTeamScreen({ ctx }) {
 }
 
 function MoveRequestsScreen({ ctx }) {
-  const { activeBusiness, businesses, persistBusinesses, pop } = ctx;
+  const { activeBusiness, businesses, persistBusinesses, pop, getEntries, saveEntries, logActivity } = ctx;
   const requests = (activeBusiness?.moveRequests || []);
 
   const respond = async (reqId, approve) => {
     const req = requests.find(r => r.id === reqId);
     if (!req) return;
-    let next = businesses;
+    const isCopy = req.mode === "copy";
+
     if (approve) {
       const fromBiz = businesses.find(b => b.id === req.fromBusinessId);
-      const bookToMove = fromBiz?.books.find(bk => bk.id === req.bookId);
-      if (bookToMove) {
-        next = businesses.map((b) => {
-          if (b.id === req.fromBusinessId) return { ...b, books: b.books.filter(bk => bk.id !== req.bookId) };
-          if (b.id === activeBusiness.id) return { ...b, books: [...b.books, bookToMove], moveRequests: b.moveRequests.filter(r => r.id !== reqId) };
-          return b;
-        });
+      const sourceBook = fromBiz?.books.find(bk => bk.id === req.bookId);
+      if (sourceBook) {
+        if (isCopy) {
+          // Copy: source business keeps its book untouched; target gets an
+          // independent book (new id) with its own duplicated entries, so
+          // editing one copy never affects the other.
+          const newBook = { ...sourceBook, id: uid(), createdAt: new Date().toISOString() };
+          const sourceEntries = await getEntries(req.bookId);
+          await saveEntries(newBook.id, sourceEntries.map(e => ({ ...e })));
+          await logActivity(newBook.id, `Copied from "${req.fromBusinessName}"`);
+          const next = businesses.map((b) => b.id === activeBusiness.id
+            ? { ...b, books: [...b.books, newBook], moveRequests: b.moveRequests.filter(r => r.id !== reqId) }
+            : b);
+          await persistBusinesses(next);
+        } else {
+          // Move: book (and its entries, unmodified under the same id) leaves
+          // the source business entirely and exists only in the target.
+          const next = businesses.map((b) => {
+            if (b.id === req.fromBusinessId) return { ...b, books: b.books.filter(bk => bk.id !== req.bookId) };
+            if (b.id === activeBusiness.id) return { ...b, books: [...b.books, sourceBook], moveRequests: b.moveRequests.filter(r => r.id !== reqId) };
+            return b;
+          });
+          await persistBusinesses(next);
+        }
       }
     } else {
-      next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, moveRequests: b.moveRequests.filter(r => r.id !== reqId) } : b);
+      const next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, moveRequests: b.moveRequests.filter(r => r.id !== reqId) } : b);
+      await persistBusinesses(next);
     }
-    await persistBusinesses(next);
   };
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Move Book Requests" onBack={pop} />
+      <TopHeader title="Move & Copy Book Requests" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {requests.length === 0 ? (
-          <EmptyState icon={Inbox} title="No pending requests" hint="Requests to move a book into this business will appear here." />
+          <EmptyState icon={Inbox} title="No pending requests" hint="Requests to move or copy a book into this business will appear here." />
         ) : requests.map((r) => (
           <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="font-medium text-slate-900 text-sm">{r.bookName}</div>
-            <div className="text-xs text-slate-500 mb-3">From {r.fromBusinessName}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="font-medium text-slate-900 text-sm">{r.bookName}</div>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${r.mode === "copy" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>
+                {r.mode === "copy" ? "COPY" : "MOVE"}
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mb-3">
+              From {r.fromBusinessName}{r.mode === "copy" ? " — a copy will be added here; the original stays there too." : " — it will no longer be in that business once approved."}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => respond(r.id, true)} className="flex-1 bg-teal-700 text-white py-2 rounded-lg text-sm font-medium">Approve</button>
               <button onClick={() => respond(r.id, false)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-lg text-sm font-medium">Deny</button>
@@ -3236,6 +3261,7 @@ function BusinessSettingsScreen({ ctx }) {
   const [name, setName] = useState(activeBusiness?.name || "");
   const [moveTarget, setMoveTarget] = useState("");
   const [moveBook, setMoveBook] = useState("");
+  const [moveMode, setMoveMode] = useState("move"); // "move" | "copy"
 
   const rename = async () => {
     const next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, name } : b);
@@ -3245,10 +3271,10 @@ function BusinessSettingsScreen({ ctx }) {
   const requestMove = async () => {
     if (!moveTarget || !moveBook) return;
     const book = activeBusiness.books.find(b => b.id === moveBook);
-    const req = { id: uid(), bookId: moveBook, bookName: book.name, fromBusinessId: activeBusiness.id, fromBusinessName: activeBusiness.name };
+    const req = { id: uid(), bookId: moveBook, bookName: book.name, fromBusinessId: activeBusiness.id, fromBusinessName: activeBusiness.name, mode: moveMode };
     const next = businesses.map((b) => b.id === moveTarget ? { ...b, moveRequests: [...(b.moveRequests || []), req] } : b);
     await persistBusinesses(next);
-    setMoveBook(""); setMoveTarget("");
+    setMoveBook(""); setMoveTarget(""); setMoveMode("move");
   };
 
   const deleteBusiness = async () => {
@@ -3271,7 +3297,22 @@ function BusinessSettingsScreen({ ctx }) {
 
         {businesses.length > 1 && activeBusiness.books.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="font-medium text-slate-800 flex items-center gap-2"><ArrowRightLeft size={16} className="text-teal-700" /> Move a book to another business</div>
+            <div className="font-medium text-slate-800 flex items-center gap-2"><ArrowRightLeft size={16} className="text-teal-700" /> Move or copy a book to another business</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMoveMode("move")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${moveMode === "move" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300"}`}>
+                Move
+              </button>
+              <button type="button" onClick={() => setMoveMode("copy")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${moveMode === "copy" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300"}`}>
+                Copy
+              </button>
+            </div>
+            <div className="text-xs text-slate-500">
+              {moveMode === "copy"
+                ? "Copy: the book will exist in both businesses as two independent copies — one here, one there."
+                : "Move: the book leaves this business and exists only in the target business once approved."}
+            </div>
             <select value={moveBook} onChange={(e) => setMoveBook(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
               <option value="">Select book</option>
               {activeBusiness.books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -3280,7 +3321,10 @@ function BusinessSettingsScreen({ ctx }) {
               <option value="">Select target business</option>
               {businesses.filter(b => b.id !== activeBusiness.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
-            <button onClick={requestMove} className="w-full bg-teal-700 text-white py-2.5 rounded-xl font-semibold text-sm">Send Move Request</button>
+            <button onClick={requestMove} disabled={!moveTarget || !moveBook}
+              className={`w-full py-2.5 rounded-xl font-semibold text-sm ${(!moveTarget || !moveBook) ? "bg-slate-200 text-slate-400" : "bg-teal-700 text-white"}`}>
+              Send {moveMode === "copy" ? "Copy" : "Move"} Request
+            </button>
           </div>
         )}
 
