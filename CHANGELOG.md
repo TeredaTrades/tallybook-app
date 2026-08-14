@@ -3,6 +3,23 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-14 (cont.) — Delete Business confirmation, softer delete wording
+- **Delete Business** previously deleted the business immediately on tap, no
+  confirmation at all. It now shows a Yes/No confirm first (same pattern as
+  entry delete), naming the business and how many books are on it, so it's
+  clear everything inside goes with it.
+- Reworded the delete-confirmation message used for entries (and now
+  Business) from the blunt "This can't be undone." to "You won't be able to
+  get this back once it's gone." — same warning, easier to read under
+  pressure.
+- Reviewed and confirmed still open, not touched this pass: no "Copy" (only
+  "Move") for books between businesses, no instant/non-owner delete of a
+  book across businesses, and real cross-device sharing (a second person
+  seeing/editing the same book on their own phone) — the app is fully
+  offline/on-device only right now, so "Members" is local role-simulation,
+  not live multi-user sync. Needs a scoping decision (e.g. Firebase/Supabase
+  backend) before it's worth building.
+
 ## 2026-08-14 — Entry sort/time fix, delete confirmation, remark-first list, real back button
 - **Entries not re-sorting after a date edit**: found the actual cause — the entry
   Time field was free text, so editing it (or an existing entry's original time)

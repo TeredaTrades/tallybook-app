@@ -1746,7 +1746,7 @@ function BookScreen({ ctx, bookId }) {
       {deleteConfirmEntries && (
         <ConfirmModal
           title={deleteConfirmEntries.length === 1 ? "Delete this entry?" : `Delete ${deleteConfirmEntries.length} entries?`}
-          message="This can't be undone."
+          message="You won't be able to get this back once it's gone."
           confirmLabel="Yes, Delete" cancelLabel="No"
           onCancel={() => setDeleteConfirmEntries(null)} onConfirm={doDeleteSelected} />
       )}
@@ -2040,7 +2040,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
         right={isEdit ? <button onClick={() => setConfirmDelete(true)} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
       {confirmDelete && (
-        <ConfirmModal title="Delete this entry?" message="This can't be undone."
+        <ConfirmModal title="Delete this entry?" message="You won't be able to get this back once it's gone."
           confirmLabel="Yes, Delete" cancelLabel="No"
           onCancel={() => setConfirmDelete(false)} onConfirm={deleteEntry} />
       )}
@@ -3059,6 +3059,7 @@ function BusinessSettingsScreen({ ctx }) {
   const [name, setName] = useState(activeBusiness?.name || "");
   const [moveTarget, setMoveTarget] = useState("");
   const [moveBook, setMoveBook] = useState("");
+  const [confirmDeleteBusiness, setConfirmDeleteBusiness] = useState(false);
 
   const rename = async () => {
     const next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, name } : b);
@@ -3079,6 +3080,11 @@ function BusinessSettingsScreen({ ctx }) {
     await persistBusinesses(next);
     resetTo("books");
   };
+
+  const bookCount = activeBusiness?.books?.length || 0;
+  const deleteBusinessMessage = bookCount > 0
+    ? `This will remove "${activeBusiness.name}" and its ${bookCount} book${bookCount === 1 ? "" : "s"} for good — there's no getting it back after.`
+    : `This will remove "${activeBusiness?.name}" for good — there's no getting it back after.`;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -3107,10 +3113,19 @@ function BusinessSettingsScreen({ ctx }) {
           </div>
         )}
 
-        <button onClick={deleteBusiness} className="w-full flex items-center justify-center gap-2 text-rose-700 border border-rose-200 rounded-xl py-3 font-medium">
+        <button onClick={() => setConfirmDeleteBusiness(true)} className="w-full flex items-center justify-center gap-2 text-rose-700 border border-rose-200 rounded-xl py-3 font-medium">
           <Trash2 size={16} /> Delete Business
         </button>
       </div>
+
+      {confirmDeleteBusiness && (
+        <ConfirmModal
+          title="Delete this business?"
+          message={deleteBusinessMessage}
+          confirmLabel="Yes, Delete" cancelLabel="No"
+          onCancel={() => setConfirmDeleteBusiness(false)}
+          onConfirm={() => { setConfirmDeleteBusiness(false); deleteBusiness(); }} />
+      )}
     </div>
   );
 }
