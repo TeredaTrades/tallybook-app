@@ -41,8 +41,14 @@ export const PRODUCTS = [
   },
   {
     id: "trip-organizer",
-    name: "በጅሮንድ Trip Organizer",
-    tagline: "Plan trips, budgets, and packing lists",
+    name: "አጋፋሪ",
+    tagline: "Your one-stop shop for experiences & vibes",
+    playStoreUrl: null,
+  },
+  {
+    id: "marketplace",
+    name: "ገበያ",
+    tagline: "Buy & sell marketplace",
     playStoreUrl: null,
   },
 ];
