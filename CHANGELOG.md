@@ -3,6 +3,23 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-14 (cont. 2) — Copy (not just Move) a book between businesses
+- Business Settings' "Move a book to another business" is now "Move or copy a
+  book to another business", with a Move/Copy toggle above the book/target
+  pickers. **Move** works as before — the book leaves the source business and
+  exists only in the target once approved. **Copy** leaves the original book
+  untouched in the source business and creates a second, fully independent
+  book in the target business (its own id, its own duplicated entries) —
+  editing one copy never affects the other.
+- The request/approval flow (Settings > Move & Copy Book Requests) now shows
+  a Move/Copy badge on each pending request and explains what approving it
+  will do before the owner taps Approve.
+- Same request object either way, just tagged with which mode was requested,
+  so this needed no new storage/schema migration.
+- Lives in the shared `BusinessSettingsScreen`/`MoveRequestsScreen` code, so
+  it applies to both the full bundle and the standalone Expenses Manager
+  build once ported to `individual-base`.
+
 ## 2026-08-14 (cont.) — Delete Business confirmation, softer delete wording
 - **Delete Business** previously deleted the business immediately on tap, no
   confirmation at all. It now shows a Yes/No confirm first (same pattern as
