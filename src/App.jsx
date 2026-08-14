@@ -15,6 +15,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { App as CapacitorApp } from "@capacitor/app";
 import jsPDF from "jspdf";
 import { APP_VARIANT, IS_BUNDLE, PRODUCTS, BUNDLE_PRODUCT, productById } from "./appConfig";
 import { exportProductData, readExportFile, importProductData, hasExistingData, PRODUCT_DATA_SCOPES } from "./dataPortability";
@@ -37,11 +38,39 @@ const BOOK_TEMPLATES = ["Sales Ledger", "Bank Reconciliation", "Shared Cashbook"
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const nowTimeStr = () => {
+// 24-hour "HH:MM" — what the native <input type="time"> picker needs/returns.
+const nowTimeStr24 = () => {
   const d = new Date();
-  let h = d.getHours(); const m = d.getMinutes();
-  const ampm = h >= 12 ? "PM" : "AM"; h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")} ${ampm}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+// Normalizes a stored time value (legacy free-typed "9:00 PM" strings, or the current
+// 24h "HH:MM" from the native time picker) into "HH:MM" for the <input type="time">
+// field's value. Anything unrecognized falls back to the current time rather than
+// leaving the picker blank.
+const to24h = (t) => {
+  const raw = (t || "").trim();
+  const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (m24) return `${m24[1].padStart(2, "0")}:${m24[2]}`;
+  const mAmPm = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec(raw);
+  if (mAmPm) {
+    let h = parseInt(mAmPm[1], 10) % 12;
+    if (/PM/i.test(mAmPm[3])) h += 12;
+    return `${String(h).padStart(2, "0")}:${mAmPm[2]}`;
+  }
+  return nowTimeStr24();
+};
+// Formats a stored time value (either format) as "h:mm AM/PM" for display.
+const fmtTime12 = (t) => {
+  const raw = (t || "").trim();
+  if (!raw) return "";
+  const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (m24) {
+    let h = parseInt(m24[1], 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${m24[2]} ${ampm}`;
+  }
+  return raw; // already "h:mm AM/PM"
 };
 const fmtDate = (iso) => {
   const d = new Date(iso + "T00:00:00");
@@ -50,11 +79,15 @@ const fmtDate = (iso) => {
 // Turns an entry's date + "9:00 PM"-style time into a real, sortable Date.
 const entryDateTime = (e) => {
   const d = new Date((e.date || todayStr()) + "T00:00:00");
-  const m = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec((e.time || "").trim());
+  const raw = (e.time || "").trim();
+  const m = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i.exec(raw);
   if (m) {
     let h = parseInt(m[1], 10) % 12;
     if (/PM/i.test(m[3])) h += 12;
     d.setHours(h, parseInt(m[2], 10), 0, 0);
+  } else {
+    const m24 = /^(\d{1,2}):(\d{2})$/.exec(raw);
+    if (m24) d.setHours(parseInt(m24[1], 10), parseInt(m24[2], 10), 0, 0);
   }
   return d;
 };
@@ -616,6 +649,10 @@ export default function TallyBookApp() {
   const [notifPermission, setNotifPermission] = useState("unknown");
   const [inputFocused, setInputFocused] = useState(false); // hides the floating list button while typing so it can't sit on top of a Save button
   const [activeAlarm, setActiveAlarm] = useState(null); // reminder popup payload, shown on notification receipt/tap
+  // Lets whichever screen is on top intercept the hardware back button first (to close
+  // its own open modal/select-mode instead of leaving the screen). Set by screens via
+  // ctx.setBackHandler; the handler returns true if it consumed the press.
+  const backHandlerRef = useRef(null);
 
   const top = stack[stack.length - 1];
   const push = (screen, extra = {}) => setStack((s) => [...s, { screen, ...extra }]);
@@ -734,6 +771,23 @@ export default function TallyBookApp() {
     setActiveAlarm(null);
   }, [activeAlarm, persistPlanned]);
 
+  // Hardware back button: close whatever's on top first (a screen's own overlay, then
+  // the global planned-items sidebar / reminder popup), otherwise step back through the
+  // in-app navigation stack one screen at a time, then fall back to the Home tab, and
+  // only exit the app once there's truly nowhere left to go back to.
+  useEffect(() => {
+    let handle;
+    CapacitorApp.addListener("backButton", () => {
+      if (backHandlerRef.current && backHandlerRef.current()) return;
+      if (plannedSidebarOpen) { setPlannedSidebarOpen(false); return; }
+      if (activeAlarm) { dismissAlarm(); return; }
+      if (stack.length > 1) { pop(); return; }
+      if (tab !== "home") { setTab("home"); resetTo("home"); return; }
+      CapacitorApp.exitApp();
+    }).then((h) => { handle = h; });
+    return () => { if (handle) handle.remove(); };
+  }, [plannedSidebarOpen, activeAlarm, stack, tab, dismissAlarm]);
+
   const activeBusiness = businesses.find((b) => b.id === session.activeBusinessId) || null;
 
   const getEntries = useCallback(async (bookId) => {
@@ -836,6 +890,7 @@ export default function TallyBookApp() {
     push, pop, resetTo, stack, top,
     plannedItems, persistPlanned, notifPermission, requestNotifPermission,
     theme, persistTheme,
+    setBackHandler: (fn) => { backHandlerRef.current = fn; },
   };
 
   const pendingPlannedCount = plannedItems.filter((p) => !p.done).length;
@@ -1623,16 +1678,29 @@ function SwitchBusinessScreen({ ctx, embedded, onDone }) {
 
 // ---------- Book screen ----------
 function BookScreen({ ctx, bookId }) {
-  const { activeBusiness, businesses, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity } = ctx;
+  const { activeBusiness, businesses, push, pop, getEntries, saveEntries, appSettings, canAddEntries, viewer, logActivity, setBackHandler } = ctx;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const [entries, setEntries] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [moveCopyEntries, setMoveCopyEntries] = useState(null); // array of entries, or null
+  const [deleteConfirmEntries, setDeleteConfirmEntries] = useState(null); // array of entries, or null
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => { getEntries(bookId).then(setEntries); }, [bookId]);
+
+  // Let the hardware back button close whichever overlay is open (confirm prompt,
+  // move/copy sheet, select mode) one step at a time instead of leaving the screen.
+  useEffect(() => {
+    setBackHandler?.(() => {
+      if (deleteConfirmEntries) { setDeleteConfirmEntries(null); return true; }
+      if (moveCopyEntries) { setMoveCopyEntries(null); return true; }
+      if (selectMode) { setSelectMode(false); setSelectedIds(new Set()); return true; }
+      return false;
+    });
+    return () => setBackHandler?.(null);
+  }, [deleteConfirmEntries, moveCopyEntries, selectMode, setBackHandler]);
 
   if (!book) return <EmptyState icon={BookMarked} title="Book not found" />;
 
@@ -1692,6 +1760,19 @@ function BookScreen({ ctx, bookId }) {
       await logActivity(targetBookId, `${viewer.name} copied ${countLabel} in from ${book?.name}`);
     }
     setMoveCopyEntries(null);
+    exitSelectMode();
+  };
+
+  const doDeleteSelected = async () => {
+    const selected = deleteConfirmEntries;
+    if (!selected || selected.length === 0) return;
+    const selectedIdSet = new Set(selected.map((e) => e.id));
+    const es = await getEntries(bookId);
+    const next = es.filter((e) => !selectedIdSet.has(e.id));
+    await saveEntries(bookId, next);
+    await logActivity(bookId, `${viewer.name} deleted ${selected.length === 1 ? "an entry" : `${selected.length} entries`}`);
+    setEntries(next);
+    setDeleteConfirmEntries(null);
     exitSelectMode();
   };
 
@@ -1810,6 +1891,12 @@ function BookScreen({ ctx, bookId }) {
           </button>
           <button
             disabled={selectedIds.size === 0}
+            onClick={() => setDeleteConfirmEntries((entries || []).filter((e) => selectedIds.has(e.id)))}
+            className="px-4 py-2.5 rounded-xl font-semibold border border-rose-200 text-rose-700 disabled:opacity-40">
+            <Trash2 size={18} />
+          </button>
+          <button
+            disabled={selectedIds.size === 0}
             onClick={() => setMoveCopyEntries((entries || []).filter((e) => selectedIds.has(e.id)))}
             className="flex-1 flex items-center justify-center gap-1 bg-teal-700 text-white py-2.5 rounded-xl font-semibold disabled:opacity-40">
             <ArrowRightLeft size={18} /> Move / Copy {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
@@ -1831,6 +1918,14 @@ function BookScreen({ ctx, bookId }) {
       {moveCopyEntries && (
         <MoveCopyModal entries={moveCopyEntries} otherBooks={otherBooks} cur={cur} activeBusinessId={activeBusiness?.id}
           onClose={() => setMoveCopyEntries(null)} onAction={doMoveOrCopy} />
+      )}
+
+      {deleteConfirmEntries && (
+        <ConfirmModal
+          title={deleteConfirmEntries.length === 1 ? "Delete this entry?" : `Delete ${deleteConfirmEntries.length} entries?`}
+          message="This can't be undone."
+          confirmLabel="Yes, Delete" cancelLabel="No"
+          onCancel={() => setDeleteConfirmEntries(null)} onConfirm={doDeleteSelected} />
       )}
     </div>
   );
@@ -1864,11 +1959,10 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium text-slate-900 truncate flex items-center gap-1.5">
-          {e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
+          {e.remark || e.contact || e.category || (e.type === "in" ? "Cash In" : "Cash Out")}
           {e.receipt && <Paperclip size={12} className="text-slate-400 shrink-0" />}
         </div>
-        <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {e.time} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
-        {e.remark && <div className="text-xs text-slate-400 truncate italic mt-0.5">"{e.remark}"</div>}
+        <div className="text-xs text-slate-500 truncate">{fmtDate(e.date)} · {fmtTime12(e.time)} · {e.paymentMode}{e.addedBy && e.addedBy !== "You" ? ` · by ${e.addedBy}` : ""}</div>
       </div>
       <div className="text-right shrink-0">
         <div className={`font-semibold ${e.type === "in" ? "text-emerald-700" : "text-rose-700"}`}>
@@ -1877,6 +1971,23 @@ function EntryRow({ e, cur, balanceText, selectMode, selected, onTap, onLongPres
         <div className="text-[11px] text-slate-400 mt-0.5">Bal {cur}{balanceText}</div>
       </div>
     </button>
+  );
+}
+
+// Simple Yes/No confirmation prompt — used before any destructive action (deleting
+// entries) so an accidental tap doesn't lose data.
+function ConfirmModal({ title, message, confirmLabel = "Yes", cancelLabel = "No", danger = true, onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm bg-white rounded-2xl p-5" onClick={(ev) => ev.stopPropagation()}>
+        <div className="font-semibold text-slate-900 text-base">{title}</div>
+        {message && <div className="text-sm text-slate-500 mt-1.5">{message}</div>}
+        <div className="flex gap-2 mt-5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl font-semibold border border-slate-300 text-slate-600">{cancelLabel}</button>
+          <button onClick={onConfirm} className={`flex-1 py-2.5 rounded-xl font-semibold text-white ${danger ? "bg-rose-700" : "bg-teal-700"}`}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2001,7 +2112,7 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
           )}
           <div className="px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-slate-500">Date</span>
-            <span className="text-sm font-medium text-slate-800">{fmtDate(entry.date)} · {entry.time}</span>
+            <span className="text-sm font-medium text-slate-800">{fmtDate(entry.date)} · {fmtTime12(entry.time)}</span>
           </div>
         </div>
 
@@ -2037,15 +2148,24 @@ function EntryDetailScreen({ ctx, bookId, entryId }) {
 
 // ---------- Add / Edit entry ----------
 function AddEntryScreen({ ctx, bookId, type, editEntry }) {
-  const { pop, getEntries, saveEntries, appSettings, logActivity, viewer, activeBusiness } = ctx;
+  const { pop, getEntries, saveEntries, appSettings, logActivity, viewer, activeBusiness, setBackHandler } = ctx;
   const isEdit = !!editEntry;
   const book = activeBusiness?.books.find((b) => b.id === bookId);
   const bookCur = bookCurrency(book, appSettings);
-  const [form, setForm] = useState(editEntry || {
-    type: type || "in", date: todayStr(), time: nowTimeStr(), amount: "", contact: "", remark: "", category: "", paymentMode: "Cash", receipt: null,
-  });
+  const [form, setForm] = useState(() => editEntry
+    ? { ...editEntry, time: to24h(editEntry.time) }
+    : { type: type || "in", date: todayStr(), time: nowTimeStr24(), amount: "", contact: "", remark: "", category: "", paymentMode: "Cash", receipt: null });
   const [showMoreModes, setShowMoreModes] = useState(false);
   const [contacts, setContacts] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setBackHandler?.(() => {
+      if (confirmDelete) { setConfirmDelete(false); return true; }
+      return false;
+    });
+    return () => setBackHandler?.(null);
+  }, [confirmDelete, setBackHandler]);
 
   const onReceiptChange = (e) => {
     const file = e.target.files?.[0];
@@ -2075,7 +2195,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
     }
     await saveEntries(bookId, next);
     if (addAnother) {
-      setForm({ type: form.type, date: form.date, time: nowTimeStr(), amount: "", contact: "", remark: "", category: "", paymentMode: form.paymentMode, receipt: null });
+      setForm({ type: form.type, date: form.date, time: nowTimeStr24(), amount: "", contact: "", remark: "", category: "", paymentMode: form.paymentMode, receipt: null });
     } else {
       pop();
     }
@@ -2095,7 +2215,12 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
   return (
     <div className="flex-1 flex flex-col">
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
-        right={isEdit ? <button onClick={deleteEntry} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
+        right={isEdit ? <button onClick={() => setConfirmDelete(true)} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
+      {confirmDelete && (
+        <ConfirmModal title="Delete this entry?" message="This can't be undone."
+          confirmLabel="Yes, Delete" cancelLabel="No"
+          onCancel={() => setConfirmDelete(false)} onConfirm={deleteEntry} />
+      )}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isEdit && (
           <div>
@@ -2121,7 +2246,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
           </label>
           <label className="flex-1">
             <div className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time</div>
-            <input type="text" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
+            <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </label>
         </div>
@@ -2560,7 +2685,7 @@ function ReportViewScreen({ ctx, bookId, filters }) {
     let rows = [];
     if (filters.reportType === "all") {
       rows.push(["Date", "Time", "Type", "Amount", "Contact", "Category", "Payment Mode", "Remark", "Added By"]);
-      filtered.forEach(e => rows.push([e.date, e.time, e.type === "in" ? "Cash In" : "Cash Out", e.amount, e.contact, e.category, e.paymentMode, e.remark, e.addedBy || "You"]));
+      filtered.forEach(e => rows.push([e.date, fmtTime12(e.time), e.type === "in" ? "Cash In" : "Cash Out", e.amount, e.contact, e.category, e.paymentMode, e.remark, e.addedBy || "You"]));
     } else if (filters.reportType === "category") {
       rows.push(["Category", "Total In", "Total Out"]);
       Object.entries(categorySummary).forEach(([k, v]) => rows.push([k, v.in || 0, v.out || 0]));
@@ -2983,7 +3108,7 @@ function SettingsScreen({ ctx }) {
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={Users} title="Business Team" sub="Add, remove or change role" onClick={() => push("businessTeam")} />
-          <Item icon={ArrowRightLeft} title="Move Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
+          <Item icon={ArrowRightLeft} title="Move & Copy Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
           <Item icon={Building2} title="Business Settings" sub="Settings specific to this business" onClick={() => push("businessSettings")} />
         </div>
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
@@ -3062,39 +3187,64 @@ function BusinessTeamScreen({ ctx }) {
 }
 
 function MoveRequestsScreen({ ctx }) {
-  const { activeBusiness, businesses, persistBusinesses, pop } = ctx;
+  const { activeBusiness, businesses, persistBusinesses, pop, getEntries, saveEntries, logActivity } = ctx;
   const requests = (activeBusiness?.moveRequests || []);
 
   const respond = async (reqId, approve) => {
     const req = requests.find(r => r.id === reqId);
     if (!req) return;
-    let next = businesses;
+    const isCopy = req.mode === "copy";
+
     if (approve) {
       const fromBiz = businesses.find(b => b.id === req.fromBusinessId);
-      const bookToMove = fromBiz?.books.find(bk => bk.id === req.bookId);
-      if (bookToMove) {
-        next = businesses.map((b) => {
-          if (b.id === req.fromBusinessId) return { ...b, books: b.books.filter(bk => bk.id !== req.bookId) };
-          if (b.id === activeBusiness.id) return { ...b, books: [...b.books, bookToMove], moveRequests: b.moveRequests.filter(r => r.id !== reqId) };
-          return b;
-        });
+      const sourceBook = fromBiz?.books.find(bk => bk.id === req.bookId);
+      if (sourceBook) {
+        if (isCopy) {
+          // Copy: source business keeps its book untouched; target gets an
+          // independent book (new id) with its own duplicated entries, so
+          // editing one copy never affects the other.
+          const newBook = { ...sourceBook, id: uid(), createdAt: new Date().toISOString() };
+          const sourceEntries = await getEntries(req.bookId);
+          await saveEntries(newBook.id, sourceEntries.map(e => ({ ...e })));
+          await logActivity(newBook.id, `Copied from "${req.fromBusinessName}"`);
+          const next = businesses.map((b) => b.id === activeBusiness.id
+            ? { ...b, books: [...b.books, newBook], moveRequests: b.moveRequests.filter(r => r.id !== reqId) }
+            : b);
+          await persistBusinesses(next);
+        } else {
+          // Move: book (and its entries, unmodified under the same id) leaves
+          // the source business entirely and exists only in the target.
+          const next = businesses.map((b) => {
+            if (b.id === req.fromBusinessId) return { ...b, books: b.books.filter(bk => bk.id !== req.bookId) };
+            if (b.id === activeBusiness.id) return { ...b, books: [...b.books, sourceBook], moveRequests: b.moveRequests.filter(r => r.id !== reqId) };
+            return b;
+          });
+          await persistBusinesses(next);
+        }
       }
     } else {
-      next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, moveRequests: b.moveRequests.filter(r => r.id !== reqId) } : b);
+      const next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, moveRequests: b.moveRequests.filter(r => r.id !== reqId) } : b);
+      await persistBusinesses(next);
     }
-    await persistBusinesses(next);
   };
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Move Book Requests" onBack={pop} />
+      <TopHeader title="Move & Copy Book Requests" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {requests.length === 0 ? (
-          <EmptyState icon={Inbox} title="No pending requests" hint="Requests to move a book into this business will appear here." />
+          <EmptyState icon={Inbox} title="No pending requests" hint="Requests to move or copy a book into this business will appear here." />
         ) : requests.map((r) => (
           <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="font-medium text-slate-900 text-sm">{r.bookName}</div>
-            <div className="text-xs text-slate-500 mb-3">From {r.fromBusinessName}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="font-medium text-slate-900 text-sm">{r.bookName}</div>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${r.mode === "copy" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>
+                {r.mode === "copy" ? "COPY" : "MOVE"}
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mb-3">
+              From {r.fromBusinessName}{r.mode === "copy" ? " — a copy will be added here; the original stays there too." : " — it will no longer be in that business once approved."}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => respond(r.id, true)} className="flex-1 bg-teal-700 text-white py-2 rounded-lg text-sm font-medium">Approve</button>
               <button onClick={() => respond(r.id, false)} className="flex-1 border border-slate-300 text-slate-600 py-2 rounded-lg text-sm font-medium">Deny</button>
@@ -3111,6 +3261,7 @@ function BusinessSettingsScreen({ ctx }) {
   const [name, setName] = useState(activeBusiness?.name || "");
   const [moveTarget, setMoveTarget] = useState("");
   const [moveBook, setMoveBook] = useState("");
+  const [moveMode, setMoveMode] = useState("move"); // "move" | "copy"
 
   const rename = async () => {
     const next = businesses.map((b) => b.id === activeBusiness.id ? { ...b, name } : b);
@@ -3120,10 +3271,10 @@ function BusinessSettingsScreen({ ctx }) {
   const requestMove = async () => {
     if (!moveTarget || !moveBook) return;
     const book = activeBusiness.books.find(b => b.id === moveBook);
-    const req = { id: uid(), bookId: moveBook, bookName: book.name, fromBusinessId: activeBusiness.id, fromBusinessName: activeBusiness.name };
+    const req = { id: uid(), bookId: moveBook, bookName: book.name, fromBusinessId: activeBusiness.id, fromBusinessName: activeBusiness.name, mode: moveMode };
     const next = businesses.map((b) => b.id === moveTarget ? { ...b, moveRequests: [...(b.moveRequests || []), req] } : b);
     await persistBusinesses(next);
-    setMoveBook(""); setMoveTarget("");
+    setMoveBook(""); setMoveTarget(""); setMoveMode("move");
   };
 
   const deleteBusiness = async () => {
@@ -3146,7 +3297,22 @@ function BusinessSettingsScreen({ ctx }) {
 
         {businesses.length > 1 && activeBusiness.books.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="font-medium text-slate-800 flex items-center gap-2"><ArrowRightLeft size={16} className="text-teal-700" /> Move a book to another business</div>
+            <div className="font-medium text-slate-800 flex items-center gap-2"><ArrowRightLeft size={16} className="text-teal-700" /> Move or copy a book to another business</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMoveMode("move")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${moveMode === "move" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300"}`}>
+                Move
+              </button>
+              <button type="button" onClick={() => setMoveMode("copy")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${moveMode === "copy" ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300"}`}>
+                Copy
+              </button>
+            </div>
+            <div className="text-xs text-slate-500">
+              {moveMode === "copy"
+                ? "Copy: the book will exist in both businesses as two independent copies — one here, one there."
+                : "Move: the book leaves this business and exists only in the target business once approved."}
+            </div>
             <select value={moveBook} onChange={(e) => setMoveBook(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
               <option value="">Select book</option>
               {activeBusiness.books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -3155,7 +3321,10 @@ function BusinessSettingsScreen({ ctx }) {
               <option value="">Select target business</option>
               {businesses.filter(b => b.id !== activeBusiness.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
-            <button onClick={requestMove} className="w-full bg-teal-700 text-white py-2.5 rounded-xl font-semibold text-sm">Send Move Request</button>
+            <button onClick={requestMove} disabled={!moveTarget || !moveBook}
+              className={`w-full py-2.5 rounded-xl font-semibold text-sm ${(!moveTarget || !moveBook) ? "bg-slate-200 text-slate-400" : "bg-teal-700 text-white"}`}>
+              Send {moveMode === "copy" ? "Copy" : "Move"} Request
+            </button>
           </div>
         )}
 
