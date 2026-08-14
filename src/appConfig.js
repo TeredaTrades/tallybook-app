@@ -11,8 +11,17 @@
 // to show.
 // ---------------------------------------------------------------------
 
-// "bundle" | "expenses-manager" | "loan-calculator" | "budget" | "trip-organizer"
-export const APP_VARIANT = "bundle";
+// "bundle" | "expenses-manager" | "loan-calculator" | "budget" | "trip-organizer" | "marketplace"
+// NOTE on "marketplace": this variant is a placeholder only. The actual
+// marketplace app (ገበያ) is NOT built from this codebase — it's a fully
+// separate repo (TeredaTrades/Gebeya) with its own Supabase-backed data
+// model, since it needs two-sided accounts/listings/messaging that share
+// nothing with this app's local-storage ledger/budget logic. Setting
+// APP_VARIANT to "marketplace" here does not render any marketplace
+// screens — none exist in App.jsx. This branch exists only to reserve
+// the slot in case a lightweight companion/promo build is ever wanted
+// here later. For the real app, see the Gebeya repo.
+export const APP_VARIANT = "marketplace";
 
 export const IS_BUNDLE = APP_VARIANT === "bundle";
 
