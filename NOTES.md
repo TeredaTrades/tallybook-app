@@ -37,7 +37,33 @@ that once and scoping all three together rather than separately.
 ## To remove
 -
 
+## Branch structure (product split)
+Goal: `main` is the full app, sold as a paid, no-ads bundle. Each tool is
+also available as its own free, ad-supported, individually-installable app
+for people who don't want to pay.
+
+- `main` — the full bundle (this is the paid product)
+- `individual-base` — shared scaffold for every single-tool app (branched
+  from `main`). Fixes/features that should apply to every product app go
+  here first, then merge out to each `individual/<product>` branch.
+- `individual/expenses-manager`, `individual/loan-calculator`,
+  `individual/budget`, `individual/trip-organizer` — one branch per
+  standalone app, branched from `individual-base`.
+
+The only thing that should differ between `main` and an `individual/*`
+branch is `src/appConfig.js`'s `APP_VARIANT` value — Home's tool cards, the
+bottom nav, and the More Apps/Import tab all read that one constant, so a
+product branch is otherwise the same codebase and can pull in shared fixes
+via a normal merge from `individual-base`.
+
 ## Open decisions
+- Each standalone app needs its own Android `applicationId` (package name)
+  and Play Store listing before it can actually be published separately —
+  intentionally not set up yet. Until then the "Get it" buttons on the
+  More Apps screen show "Coming soon". `playStoreUrl` for each product
+  lives in `src/appConfig.js` — fill those in once each listing exists.
+- Ad network for the free/ad-supported individual apps isn't picked yet
+  (AdMob is the likely default) — no ad code has been added.
 - Fasika (Orthodox Easter) isn't in the holiday-theme rotation yet — its
   date moves every year and needs a reliable lookup before adding it the
   same way as the other holidays.
@@ -52,20 +78,23 @@ _(move items here once handled, with the date)_
   the contact name, and the hardware back button now navigates one screen at a
   time (closing open sheets/select-mode first) instead of immediately minimizing
   the app (2026-08-14)
-
-- Expenses Manager now always opens on Select Business, even with just one
-  business saved, instead of only showing that screen at 2+ businesses.
-  Applies to both the bundle app and the standalone Expenses Manager build.
-  Floating icon (Quick Access) made smaller and semi-transparent so it's
-  less obtrusive over other apps (2026-08-13)
+- Ported the business-picker-on-login fix from `main` onto this branch, so
+  all `individual/*` product apps get it too: returning user with 2+
+  businesses lands on Select Business again instead of auto-continuing in
+  the last-active one (2026-08-13)
+- Superseded the above: Expenses Manager now always opens on Select
+  Business, even with just one business saved, instead of only showing
+  that screen at 2+ businesses. Applies to both the bundle app and the
+  standalone Expenses Manager build. Floating icon (Quick Access) made
+  smaller and semi-transparent so it's less obtrusive over other apps
+  (2026-08-13)
 - Removed the `VITE_APP_VARIANT`/`.env.standalone` build scaffold that had
   been added directly to `main` — it duplicated the existing `individual-
   base`/`individual/*` branch structure that's the real mechanism for
   standalone product apps. The standalone Expenses Manager app is built
   from `individual/expenses-manager` instead (2026-08-13)
-- Business picker now shows on login for returning users with more than one
-  business, instead of auto-continuing in whichever one was last active
-  (2026-08-13)
+- Merged cross-business move/copy and the Quick Access home screen widget /
+  floating icon in from `main` (2026-08-13)
 
 - Light/dark quick-toggle button added to Home's header; Appearance screen
   regrouped into Solid / Pattern / Holiday sections; Pink theme lightened;

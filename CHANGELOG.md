@@ -3,6 +3,25 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-15 — Reconciled `main` with `individual-base`
+`main` had fallen behind `individual-base` — it was missing the entire
+product-variant system (`appConfig.js`, `dataPortability.js`, the real
+"More Apps" screen with per-product cards) and several `individual-base`-
+only commits. Merged `individual-base` into `main` to fix this. Notable
+merge resolutions:
+- Kept `main`'s Delete Business confirmation dialog and softened delete-
+  confirmation wording ("You won't be able to get this back once it's
+  gone.") everywhere — `individual-base` had regressed to no confirmation
+  at all on Delete Business, and the older, blunter "This can't be
+  undone." wording elsewhere.
+- `main`'s own Copy-a-book and Delete Business confirmation changelog
+  entries (previously only on `main`) and `individual-base`'s More Apps
+  branding entry (previously only there, since it doesn't apply to
+  `main`'s bundle build) are both now part of this shared history below.
+`main` is `IS_BUNDLE`/`APP_VARIANT = "bundle"` as before — this merge
+doesn't change what `main` builds, just brings its shared code up to
+date with everything `individual-base` has picked up since they diverged.
+
 ## 2026-08-14 (cont. 2) — Copy (not just Move) a book between businesses
 - Business Settings' "Move a book to another business" is now "Move or copy a
   book to another business", with a Move/Copy toggle above the book/target
@@ -66,6 +85,24 @@ record without needing to scroll back through chat history.
   code, so they apply to both the full bundle and the standalone Expenses Manager
   build once ported to `individual-base`.
 
+## 2026-08-13 (cont. 12) — More Apps branding, "Get" buttons, trading card
+- More Apps screen title changed from "More Apps" to "More በጅሮንድ Apps".
+- Every product name shown on that screen now carries the በጅሮንድ prefix:
+  the bundle card is now "በጅሮንድ Finances" (was "በጅሮንድ — All-in-One"), and
+  the four single-tool products are "በጅሮንድ Expenses Manager", "በጅሮንድ Loan
+  Calculator", "በጅሮንድ Budget", and "በጅሮንድ Trip Organizer".
+- The grayed-out "Coming soon" pill (shown when a product has no
+  `playStoreUrl` yet) is now an actively-styled "Get" button instead —
+  doesn't link anywhere yet since the Play Store URLs still aren't set up
+  (see NOTES.md), but no longer looks disabled. The existing linked button
+  is now labeled "Get" too (was "Get it"), so both states read the same.
+- Added the "Want to learn about trading?" placeholder card (not linked
+  yet — same as the one on Home) to the bottom of the More Apps screen too,
+  since the Expenses Manager standalone build has no Home screen and
+  otherwise had no way to reach it.
+- Made on `individual-base` and merged into all four `individual/*` product
+  branches. `main` is unaffected — the bundle build's "more" tab is the
+  Import screen, not this one.
 ## 2026-08-13 (cont. 10) — Business picker always shown, smaller/fainter floating icon
 - Expenses Manager (Cashbooks) now always opens on the "Select Business" screen on
   a fresh session, even for a user with only one business — previously that screen
@@ -79,7 +116,63 @@ record without needing to scroll back through chat history.
   semi-transparent (55% opacity) so it sits more quietly over whatever app it's
   floating on top of, rather than fully solid at a larger size.
 
-## 2026-08-13 (cont. 9) — Cross-business move/copy, Quick Access widget & floating icon
+## 2026-08-13 (cont. 11) — [individual-base branch] Merged Select Business always-shown & fainter floating icon
+- Merged in from `main`: the Expenses Manager always opens on Select Business now,
+  even with only one business saved (previously that screen was skipped at 0/1
+  business — see the `main` entry below for the full description), and the floating
+  icon (Settings > Quick Access) is smaller and semi-transparent. Applies here
+  unchanged and carries forward into every `individual/*` product branch merged
+  from this one, including `individual/expenses-manager`.
+
+## 2026-08-13 (cont. 10) — [individual-base branch] Merged cross-business move/copy & Quick Access
+- Merged in from `main`: cross-business move/copy for the Expenses Manager, and
+  Settings > Quick Access (home screen widget + floating icon). See the `main`
+  entry below (cont. 9) for the full description — applies here unchanged since
+  none of it is bundle-specific, and carries forward into every `individual/*`
+  product branch merged from this one, including `individual/expenses-manager`.
+
+## 2026-08-13 (cont. 9) — [individual-base branch] Business picker on login
+- Ported the same fix already on `main`: the Expenses Manager now shows the
+  Select Business picker each time a returning user with 2+ businesses logs
+  back in, instead of silently reopening whichever business was last active.
+  Picking (or dismissing) the picker only prompts once per session; users
+  with 0 or 1 business are unaffected and go straight in as before. This
+  applies to every `individual/*` product branch merged forward from here,
+  including `individual/expenses-manager`.
+
+## 2026-08-13 (cont. 8) — [individual-base branch] Product split scaffold
+This branch (`individual-base`) is the shared starting point for the
+single-tool, ad-supported apps (`individual/expenses-manager`,
+`individual/loan-calculator`, `individual/budget`, `individual/trip-organizer`).
+`main` stays the full paid bundle. See NOTES.md "Branch structure" for the
+overall plan.
+
+- Added `src/appConfig.js`: one `APP_VARIANT` constant ("bundle" or a
+  product id) is now the only thing that should differ between `main` and
+  each `individual/*` branch — everything else is shared code that merges
+  cleanly. Home's tool cards and the bottom nav's Cashbooks tab now read
+  this to show only the relevant tool(s).
+- Added a "More Apps" / "Import" bottom-nav tab:
+  - On the bundle build, it's an **Import data** screen — pick an export
+    file from a standalone app and merge that product's data in.
+  - On a single-tool build, it's cross-promotion: the other standalone
+    apps + an upsell card for the full bundle (Play Store links show
+    "Coming soon" until each product has its own package name/listing —
+    see NOTES.md), plus an **Export** action to save that app's data to a
+    file for later import into the bundle.
+- Added `src/dataPortability.js`: export/import is file-based (JSON, via
+  the existing Filesystem+Share pattern used for CSV/PDF), not automatic
+  detection — Android sandboxes each installed app's storage separately,
+  so two separately-installed apps can never read each other's data
+  directly even though they share this codebase. Each product's export is
+  scoped to only its own storage keys (e.g. Budget's export never touches
+  `businesses`/`entries:*`), so importing into the bundle can't clobber
+  other tools' data. Loan Calculator has nothing to export today since it
+  doesn't persist anything between sessions.
+- Ads were deliberately left out of this pass (network not decided yet —
+  see NOTES.md).
+
+## 2026-08-13 (cont. 9) — [main branch] Cross-business move/copy, Quick Access widget & floating icon
 - Move/copy an entry (or a multi-select batch) in the Expenses Manager can now target
   a book in *any* of the user's businesses, not just the currently active one. The
   Move/Copy sheet groups target books by business (active business first, unlabeled;
@@ -111,7 +204,20 @@ record without needing to scroll back through chat history.
     actual native compile is validated by the GitHub Actions build; if the floating
     icon behaves oddly on a given OEM's Android build, that's the first thing to check.
 
-## 2026-08-13 (cont. 8) — Clean up misplaced standalone-build scaffold
+## 2026-08-13 (cont. 10) — [main branch] Select Business always shown, fainter floating icon
+- Expenses Manager (Cashbooks) now always opens on the "Select Business" screen on
+  a fresh session, even for a user with only one business — previously that screen
+  only showed when there were 2+ businesses, and a single-business user was dropped
+  straight into their books. The "Select Business" screen's copy adjusts depending on
+  whether there's one business or several. This applies to both the full bundle app
+  and the standalone Expenses Manager build, since both share the same underlying
+  screen. A user with 0 businesses is unaffected — they still land on "what will you
+  manage?" to create their first one, since there's nothing yet to pick between.
+- The floating icon (Settings > Quick Access) is now smaller (40dp, was 56dp) and
+  semi-transparent (55% opacity) so it sits more quietly over whatever app it's
+  floating on top of, rather than fully solid at a larger size.
+
+## 2026-08-13 (cont. 8) — [main branch] Clean up misplaced standalone-build scaffold
 - The previous entry below added a `VITE_APP_VARIANT`/`.env.standalone`
   build-variant scaffold directly on `main` to produce a standalone
   Expenses Manager build. That duplicated the branch structure that
@@ -126,7 +232,7 @@ record without needing to scroll back through chat history.
   merged into `individual/expenses-manager`, so the real standalone
   Expenses Manager app (built from that branch) gets it too.
 
-## 2026-08-13 (cont. 7) — Business picker on login, standalone Expenses Manager APK
+## 2026-08-13 (cont. 7) — [main branch] Business picker on login, standalone Expenses Manager APK
 - Fixed Expenses Manager (Cashbooks) so that a returning user with more than
   one business now lands on the "Select Business" picker each time they log
   back in (after the Welcome back PIN screen), instead of being silently
