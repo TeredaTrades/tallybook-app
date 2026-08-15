@@ -1194,16 +1194,16 @@ function HomeScreen({ ctx }) {
             <button onClick={() => push("books")}
               className="bg-teal-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
               <Wallet size={26} />
-              <div className="font-semibold text-base leading-tight">Expenses Manager</div>
-              <div className="text-xs text-teal-100">Books, entries & reports</div>
+              <div className="font-semibold text-base leading-tight">{productById("expenses-manager").name}</div>
+              <div className="text-xs text-teal-100">{productById("expenses-manager").tagline}</div>
             </button>
           )}
           {(IS_BUNDLE || APP_VARIANT === "loan-calculator") && (
             <button onClick={() => push("loanCalculator")}
               className="bg-slate-800 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
               <Calculator size={26} />
-              <div className="font-semibold text-base leading-tight">Loan Calculator</div>
-              <div className="text-xs text-slate-300">Payments & amortization</div>
+              <div className="font-semibold text-base leading-tight">{productById("loan-calculator").name}</div>
+              <div className="text-xs text-slate-300">{productById("loan-calculator").tagline}</div>
             </button>
           )}
         </div>
@@ -1212,8 +1212,8 @@ function HomeScreen({ ctx }) {
           <button onClick={() => push("budget")}
             className="w-full bg-amber-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
             <PiggyBank size={26} />
-            <div className="font-semibold text-base leading-tight">Budget</div>
-            <div className="text-xs text-amber-100">Plan income, expenses & where the rest goes</div>
+            <div className="font-semibold text-base leading-tight">{productById("budget").name}</div>
+            <div className="text-xs text-amber-100">{productById("budget").tagline}</div>
           </button>
         )}
 
@@ -1221,8 +1221,8 @@ function HomeScreen({ ctx }) {
           <button onClick={() => push("tripOrganizer")}
             className="w-full bg-sky-700 text-white rounded-xl p-5 flex flex-col items-start gap-2 text-left active:scale-[0.98] transition-transform">
             <Plane size={26} />
-            <div className="font-semibold text-base leading-tight">Trip Organizer</div>
-            <div className="text-xs text-sky-100">Plan destinations, budget & packing</div>
+            <div className="font-semibold text-base leading-tight">{productById("trip-organizer").name}</div>
+            <div className="text-xs text-sky-100">{productById("trip-organizer").tagline}</div>
           </button>
         )}
 
@@ -1230,8 +1230,8 @@ function HomeScreen({ ctx }) {
           className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-4">
           <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700 shrink-0"><ShoppingBag size={18} /></div>
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-slate-900 text-sm">Buy & Sell Marketplace</div>
-            <div className="text-xs text-slate-500">Browse listings or sell something online</div>
+            <div className="font-medium text-slate-900 text-sm">{productById("marketplace").name}</div>
+            <div className="text-xs text-slate-500">{productById("marketplace").tagline}</div>
           </div>
           <ExternalLink size={15} className="text-slate-300 shrink-0" />
         </a>
