@@ -3044,7 +3044,7 @@ function QuickAccessScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Quick Access" subtitle="Reach Expenses Manager without opening the app first" onBack={pop} />
+      <TopHeader title="Quick Access" subtitle={`Reach ${productById("expenses-manager").name} without opening the app first`} onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {!native && (
           <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -3510,7 +3510,7 @@ function LoanCalculatorScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Loan Calculator" subtitle="Amortization schedule" onBack={pop} />
+      <TopHeader title={productById("loan-calculator").name} subtitle="Amortization schedule" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
           <div>
@@ -3687,7 +3687,7 @@ function BudgetScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Budget" subtitle="Income, expenses & where the rest goes" onBack={pop} />
+      <TopHeader title={productById("budget").name} subtitle="Income, expenses & where the rest goes" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-10">
 
         <div className={`rounded-xl p-4 text-white ${remainder >= 0 ? "bg-teal-700" : "bg-rose-700"}`}>
@@ -3786,7 +3786,7 @@ function TripOrganizerScreen({ ctx }) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <TopHeader title="Trip Organizer" subtitle="Plan your trips" onBack={pop} />
+      <TopHeader title={productById("trip-organizer").name} subtitle="Plan your trips" onBack={pop} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5">
           <div className="font-medium text-slate-800 text-sm">New trip</div>
