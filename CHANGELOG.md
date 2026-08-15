@@ -3,6 +3,16 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-15 — Backported Delete Business confirmation dialog
+`individual-base` and `individual/expenses-manager` were still missing the
+Delete Business confirmation dialog that `main` picked up in the earlier
+reconciliation (Delete Business fired immediately on tap, no confirm step).
+Backported the same `ConfirmModal` + book-count-aware message from `main`.
+Note: `main`'s softer entry-delete wording ("You won't be able to get this
+back once it's gone.") was NOT backported here — these two branches still
+say "This can't be undone." for entry deletes. Flagging as a separate open
+item, not bundled into this fix.
+
 ## 2026-08-15 — Gated business-only Settings items behind the expenses-manager gate
 `SettingsScreen` listed "Business Team", "Move & Copy Book Requests", and
 "Business Settings" unconditionally on every `APP_VARIANT`, not just the
