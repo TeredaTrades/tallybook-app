@@ -3106,11 +3106,13 @@ function SettingsScreen({ ctx }) {
     <div className="flex-1 flex flex-col">
       <TopHeader title="Settings" />
       <div className="flex-1 overflow-y-auto">
-        <div className="divide-y divide-slate-100 bg-white">
-          <Item icon={Users} title="Business Team" sub="Add, remove or change role" onClick={() => push("businessTeam")} />
-          <Item icon={ArrowRightLeft} title="Move & Copy Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
-          <Item icon={Building2} title="Business Settings" sub="Settings specific to this business" onClick={() => push("businessSettings")} />
-        </div>
+        {(IS_BUNDLE || APP_VARIANT === "expenses-manager") && (
+          <div className="divide-y divide-slate-100 bg-white">
+            <Item icon={Users} title="Business Team" sub="Add, remove or change role" onClick={() => push("businessTeam")} />
+            <Item icon={ArrowRightLeft} title="Move & Copy Book Requests" sub="Approve or deny requests" onClick={() => push("moveRequests")} />
+            <Item icon={Building2} title="Business Settings" sub="Settings specific to this business" onClick={() => push("businessSettings")} />
+          </div>
+        )}
         <div className="px-4 py-2 text-xs font-medium text-slate-400 uppercase bg-slate-100">General Settings</div>
         <div className="divide-y divide-slate-100 bg-white">
           <Item icon={SettingsIcon} title="App Settings" sub="Currency, categories, payment modes" onClick={() => push("appSettings")} />

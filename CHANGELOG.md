@@ -3,6 +3,16 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-15 — Gated business-only Settings items behind the expenses-manager gate
+`SettingsScreen` listed "Business Team", "Move & Copy Book Requests", and
+"Business Settings" unconditionally on every `APP_VARIANT`, not just the
+bundle and Expenses Manager where those concepts apply. On the other
+single-tool builds (Budget, Loan Calculator, Trip Organizer, Marketplace)
+this let someone reach a Delete Business button that crashed the app,
+since those variants never have an `activeBusiness`. Wrapped the three
+items in the same `IS_BUNDLE || APP_VARIANT === "expenses-manager"` gate
+already used for the Home card and Cashbooks tab.
+
 ## 2026-08-15 — Reconciled `main` with `individual-base`
 `main` had fallen behind `individual-base` — it was missing the entire
 product-variant system (`appConfig.js`, `dataPortability.js`, the real
