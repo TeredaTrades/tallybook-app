@@ -3,6 +3,18 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-15 — Delete Book confirmation, discoverable move/copy-book section
+Two fixes to `BookSettingsScreen` / `BusinessSettingsScreen`:
+- Delete Book fired immediately on tap, no confirmation — added the same
+  ConfirmModal step Delete Business already has, with a book-name-aware
+  message.
+- "Move or copy a book to another business" was entirely invisible unless
+  you already had 2+ businesses and the active one had books — no hint,
+  no explanation, just gone. It now always shows, with a short message
+  explaining what's needed ("Add another business first...", "This
+  business has no books yet...") when the actual controls aren't ready
+  to use yet.
+
 ## 2026-08-15 — Gated business-only Settings items behind the expenses-manager gate
 `SettingsScreen` listed "Business Team", "Move & Copy Book Requests", and
 "Business Settings" unconditionally on every `APP_VARIANT`, not just the
