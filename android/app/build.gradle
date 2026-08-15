@@ -4,7 +4,7 @@ android {
     namespace "com.teredatrades.tallybook"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.teredatrades.tallybook"
+        applicationId "com.teredatrades.tallybook.bundle"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

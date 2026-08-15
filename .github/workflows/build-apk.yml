@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,8 +45,40 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
+      # This file is intentionally the same across main and every individual/*
+      # branch — it never needs a per-branch edit. It reads which variant it's
+      # building straight from capacitor.config.json's appId (e.g.
+      # com.teredatrades.tallybook.expensesmanager -> "expensesmanager"), which
+      # IS branch-specific, and uses that to name the output file. So the label
+      # here stays correct automatically as branches are added or renamed.
+      - name: Determine variant label from appId
+        id: variant
+        run: |
+          APP_ID=$(node -p "require('./capacitor.config.json').appId")
+          SLUG=$(echo "$APP_ID" | awk -F. '{print $NF}')
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "dist-apk/Bejirond-${{ steps.variant.outputs.slug }}-debug.apk"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bejirond-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Bejirond-${{ steps.variant.outputs.slug }}-debug-apk
+          path: dist-apk/Bejirond-${{ steps.variant.outputs.slug }}-debug.apk
+
+      # Actions artifacts (above) require being signed into GitHub to download.
+      # Also publish as a GitHub Release asset so the APK has a plain downloadable
+      # URL that works without extra auth.
+      - name: Publish GitHub Release with APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_SLUG=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          TAG="build-${BRANCH_SLUG}-${{ github.run_number }}"
+          gh release create "$TAG" "dist-apk/Bejirond-${{ steps.variant.outputs.slug }}-debug.apk" \
+            --title "Bejirond ${{ steps.variant.outputs.slug }} debug build — ${{ github.ref_name }} #${{ github.run_number }}" \
+            --notes "Automated debug APK build from ${{ github.ref_name }} at ${{ github.sha }}."
