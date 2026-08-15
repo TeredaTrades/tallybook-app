@@ -1923,7 +1923,7 @@ function BookScreen({ ctx, bookId }) {
       {deleteConfirmEntries && (
         <ConfirmModal
           title={deleteConfirmEntries.length === 1 ? "Delete this entry?" : `Delete ${deleteConfirmEntries.length} entries?`}
-          message="This can't be undone."
+          message="You won't be able to get this back once it's gone."
           confirmLabel="Yes, Delete" cancelLabel="No"
           onCancel={() => setDeleteConfirmEntries(null)} onConfirm={doDeleteSelected} />
       )}
@@ -2217,7 +2217,7 @@ function AddEntryScreen({ ctx, bookId, type, editEntry }) {
       <TopHeader title={isEdit ? "Edit Entry" : `Add ${isIn ? "Cash In" : "Cash Out"} Entry`} onBack={pop}
         right={isEdit ? <button onClick={() => setConfirmDelete(true)} className="p-2 text-rose-700"><Trash2 size={18} /></button> : null} />
       {confirmDelete && (
-        <ConfirmModal title="Delete this entry?" message="This can't be undone."
+        <ConfirmModal title="Delete this entry?" message="You won't be able to get this back once it's gone."
           confirmLabel="Yes, Delete" cancelLabel="No"
           onCancel={() => setConfirmDelete(false)} onConfirm={deleteEntry} />
       )}

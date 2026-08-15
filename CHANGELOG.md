@@ -3,6 +3,13 @@
 A running log of what's been built or changed, so we both have a shared
 record without needing to scroll back through chat history.
 
+## 2026-08-15 — Softened entry-delete confirmation wording
+Matched `main`'s softer entry-delete confirmation message ("You won't be
+able to get this back once it's gone.") on this branch too, replacing the
+older, blunter "This can't be undone." — the one piece of the earlier
+Delete Business confirmation backport that was deliberately left out
+until now.
+
 ## 2026-08-15 — Backported Delete Business confirmation dialog
 `individual-base` and `individual/expenses-manager` were still missing the
 Delete Business confirmation dialog that `main` picked up in the earlier
